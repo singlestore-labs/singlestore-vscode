@@ -140,12 +140,16 @@ export class ConnectionConfigPanel {
     private _getHtmlForWebview(): string {
         const nonce = getNonce();
 
+        const logoUri = this._panel.webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, "icons", "singlestore_logo_horizontal_color_on-white_rgb.png")
+        );
+
         return /*html*/ `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy"
-          content="default-src 'none'; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
+          content="default-src 'none'; img-src ${this._panel.webview.cspSource}; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SingleStore LSP Connection</title>
     <style nonce="${nonce}">
@@ -268,9 +272,21 @@ export class ConnectionConfigPanel {
             font-size: 0.85em;
             margin-top: 2px;
         }
+
+        .logo {
+            max-width: 280px;
+            margin-bottom: 16px;
+            display: block;
+        }
+
+        body.vscode-dark .logo,
+        body.vscode-high-contrast .logo {
+            filter: invert(1) hue-rotate(180deg);
+        }
     </style>
 </head>
 <body>
+    <img src="${logoUri}" alt="SingleStore" class="logo" />
     <h1>SingleStore LSP Connection</h1>
     <p class="subtitle">The configuration will be passed to the language server.
     Configure your database connection credentials before using the extension.</p>

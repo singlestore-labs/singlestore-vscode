@@ -15,6 +15,18 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "singlestore-sql",
+        "aliases": ["SingleStore SQL", "s2db"],
+        "extensions": [".s2db.sql"],
+        "icon": {
+          "light": "./icons/singlestore-light.png",
+          "dark": "./icons/singlestore-dark.png"
+        },
+        "configuration": "./language-configuration.json"
+      }
+    ],
     "commands": [
       {
         "command": "singlestore.openConnectionConfig",
