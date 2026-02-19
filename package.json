@@ -1,0 +1,74 @@
+{
+  "name": "singlestore-vscode",
+  "displayName": "SingleStore",
+  "description": "SingleStore Database connection extension for VS Code",
+  "version": "0.0.1",
+  "publisher": "singlestore",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "singlestore.openConnectionConfig",
+        "title": "SingleStore: Connection Configuration"
+      }
+    ],
+    "configuration": {
+      "title": "SingleStore",
+      "properties": {
+        "singlestore.host": {
+          "type": "string",
+          "default": "127.0.0.1",
+          "description": "SingleStore database host address"
+        },
+        "singlestore.port": {
+          "type": "number",
+          "default": 3306,
+          "description": "SingleStore database port number"
+        },
+        "singlestore.username": {
+          "type": "string",
+          "default": "",
+          "description": "Username for SingleStore database authentication"
+        },
+        "singlestore.password": {
+          "type": "string",
+          "default": "",
+          "description": "Password for SingleStore database authentication"
+        },
+        "singlestore.databaseName": {
+          "type": "string",
+          "default": "",
+          "description": "Name of the SingleStore database to connect to"
+        },
+        "singlestore.useSSL": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable SSL for the database connection"
+        },
+        "singlestore.languageServerAddress": {
+          "type": "string",
+          "default": "127.0.0.1:4040",
+          "description": "TCP address (host:port) of the language server"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^4.9.5"
+  }
+}
