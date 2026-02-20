@@ -12,7 +12,7 @@ let restartTimeout: NodeJS.Timeout | undefined;
 interface DatabaseConfig {
     host: string;
     port: number;
-    name: string;
+    database: string;
     username: string;
     password: string;
     ssl: boolean;
@@ -28,7 +28,7 @@ function getDatabaseConfig(): DatabaseConfig {
     return {
         host: config.get<string>("host", "127.0.0.1"),
         port: config.get<number>("port", 3306),
-        name: config.get<string>("databaseName", ""),
+        database: config.get<string>("databaseName", ""),
         username: config.get<string>("username", ""),
         password: config.get<string>("password", ""),
         ssl: config.get<boolean>("useSSL", false),
