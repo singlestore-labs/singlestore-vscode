@@ -1,6 +1,6 @@
 {
   "name": "singlestore-vscode",
-  "displayName": "SingleStore",
+  "displayName": "SingleStore Language Support",
   "description": "SingleStore Database connection extension for VS Code",
   "version": "0.0.1",
   "publisher": "singlestore",

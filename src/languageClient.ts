@@ -38,7 +38,7 @@ function getDatabaseConfig(): DatabaseConfig {
 function getClientConfiguration(): ClientConfig {
     const ext = vscode.extensions.getExtension("singlestore.singlestore-vscode");
     return {
-        name: ext?.packageJSON.displayName ?? "SingleStore",
+        name: ext?.packageJSON.displayName ?? "SingleStore VSCode Extension",
         version: ext?.packageJSON.version ?? "0.0.0",
     };
 }
