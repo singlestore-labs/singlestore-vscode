@@ -3,7 +3,7 @@
   "displayName": "SingleStore Language Client",
   "description": "SingleStore LSP client for VS Code",
   "version": "0.0.0",
-  "publisher": "SingleStore",
+  "publisher": "singlestore",
   "icon": "icons/singlestore-light.png",
   "repository": {
     "type": "git",
