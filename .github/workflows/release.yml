@@ -35,7 +35,7 @@ jobs:
         run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version
 
       - name: Package VSIX
-        run: npx vsce package --no-dependencies -o singlestore-${{ steps.version.outputs.version }}.vsix
+        run: npx vsce package -o singlestore-${{ steps.version.outputs.version }}.vsix
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -45,7 +45,7 @@ jobs:
 
       - name: Publish to VS Code Marketplace
         if: vars.PUBLISH_TO_MARKETPLACE == 'true'
-        run: npx vsce publish --no-dependencies -i singlestore-${{ steps.version.outputs.version }}.vsix
+        run: npx vsce publish -i singlestore-${{ steps.version.outputs.version }}.vsix
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
 

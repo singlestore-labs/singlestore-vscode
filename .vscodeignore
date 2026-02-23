@@ -5,7 +5,6 @@ src/**
 .gitignore
 .eslintrc*
 tsconfig.json
-node_modules/**
 **/*.map
 **/*.ts
 !out/**/*.js
