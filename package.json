@@ -4,6 +4,7 @@
   "description": "SingleStore LSP client for VS Code",
   "version": "0.0.0",
   "publisher": "SingleStore",
+  "icon": "icons/singlestore-light.png",
   "engines": {
     "vscode": "^1.85.0"
   },
