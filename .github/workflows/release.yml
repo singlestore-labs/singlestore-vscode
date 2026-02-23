@@ -45,9 +45,7 @@ jobs:
 
       - name: Publish to VS Code Marketplace
         if: vars.PUBLISH_TO_MARKETPLACE == 'true'
-        run: npx vsce publish -i singlestore-${{ steps.version.outputs.version }}.vsix
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx vsce publish -i singlestore-${{ steps.version.outputs.version }}.vsix -p ${{ secrets.VSCE_PAT }}
 
       - name: Publish to Open VSX Registry
         if: vars.PUBLISH_TO_OPENVSX == 'true'
