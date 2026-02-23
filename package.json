@@ -5,6 +5,10 @@
   "version": "0.0.0",
   "publisher": "SingleStore",
   "icon": "icons/singlestore-light.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/singlestore-labs/singlestore-vscode"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
