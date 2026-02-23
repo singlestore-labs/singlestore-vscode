@@ -1,9 +1,9 @@
 {
   "name": "singlestore-vscode",
-  "displayName": "SingleStore Language Support",
-  "description": "SingleStore Database connection extension for VS Code",
-  "version": "0.0.1",
-  "publisher": "singlestore",
+  "displayName": "SingleStore Language Client",
+  "description": "SingleStore LSP client for VS Code",
+  "version": "0.0.0",
+  "publisher": "SingleStore",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -34,7 +34,7 @@
       }
     ],
     "configuration": {
-      "title": "SingleStore",
+      "title": "SingleStore connection settings",
       "properties": {
         "singlestore.host": {
           "type": "string",
