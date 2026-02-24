@@ -4,6 +4,7 @@
   "description": "SingleStore LSP client for VS Code",
   "version": "0.0.0",
   "publisher": "singlestore",
+  "license": "Apache-2.0",
   "icon": "icons/singlestore-light.png",
   "repository": {
     "type": "git",
