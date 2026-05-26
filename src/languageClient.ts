@@ -7,6 +7,8 @@ import {
 } from "vscode-languageclient/node";
 
 let client: LanguageClient | undefined;
+let serverHost: string = ""
+let serverPort: number = 0;
 let restartTimeout: NodeJS.Timeout | undefined;
 
 interface DatabaseConfig {
@@ -56,6 +58,8 @@ function getLanguageServerAddress(): { host: string; port: number } {
 function createServerConnection(): () => Promise<StreamInfo> {
     return () => {
         const { host, port } = getLanguageServerAddress();
+        serverHost = host;
+        serverPort = port;
         return new Promise((resolve, reject) => {
             const socket = net.connect({ host, port }, () => {
                 resolve({
@@ -104,6 +108,20 @@ export async function startLanguageClient(): Promise<void> {
             `SingleStore LSP: Failed to connect to the language server. ${err.message || err}`
         );
         client = undefined;
+    }
+}
+
+export async function updateDatabaseConfig(): Promise<void> {
+    const { host, port } = getLanguageServerAddress();
+    if (isClientRunning() && host === serverHost && port === serverPort) {
+        await client?.sendNotification("workspace/didChangeConfiguration", {
+            settings: {
+                database: getDatabaseConfig(),
+                client: getClientConfiguration(),
+            },
+        });
+    } else {
+        scheduleRestart();
     }
 }
 

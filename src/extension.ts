@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { ConnectionConfigPanel, isConfigurationComplete } from "./configurationView";
-import { startLanguageClient, stopLanguageClient, scheduleRestart } from "./languageClient";
+import { startLanguageClient, stopLanguageClient, scheduleRestart, updateDatabaseConfig } from "./languageClient";
 
 let statusBarItem: vscode.StatusBarItem;
 
@@ -30,11 +30,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (e.affectsConfiguration("singlestore")) {
                 updateStatusBar();
                 // Restart the language client when configuration changes
-                if (isConfigurationComplete()) {
-                    scheduleRestart();
-                } else {
-                    stopLanguageClient();
-                }
+                updateDatabaseConfig();
             }
         })
     );

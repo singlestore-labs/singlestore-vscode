@@ -5,10 +5,8 @@ import * as vscode from "vscode";
  */
 export function isConfigurationComplete(): boolean {
     const config = vscode.workspace.getConfiguration("singlestore");
-    const host = config.get<string>("host", "").trim();
-    const username = config.get<string>("username", "").trim();
-    const password = config.get<string>("password", "").trim();
-    return host.length > 0 && username.length > 0 && password.length > 0;
+    const address = config.get<string>("languageServerAddress", "");
+    return address.trim().length > 0;
 }
 
 export class ConnectionConfigPanel {
@@ -380,9 +378,7 @@ export class ConnectionConfigPanel {
 
         function validate() {
             const missing = [];
-            if (!hostInput.value.trim()) missing.push('Host');
-            if (!usernameInput.value.trim()) missing.push('Username');
-            if (!passwordInput.value.trim()) missing.push('Password');
+            if (!languageServerAddressInput.value.trim()) missing.push('Language Server Address');
             return missing;
         }
 
