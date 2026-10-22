@@ -47,3 +47,7 @@ This extension works well alongside the [SQLTools](https://marketplace.visualstu
 ## File Association
 
 The extension associates with files using the `.s2db.sql` extension and provides syntax support for SingleStore SQL.
+
+## Disclaimer
+
+Attention: The code in this repository is intended for experimental use only and is not fully tested, documented, or supported by SingleStore. Visit the SingleStore Forums to ask questions about this repository.
