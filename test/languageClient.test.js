@@ -6,6 +6,7 @@ test("editor adapter maps WASM completions and discards stale or cancelled resul
     { timeout: 30000 }, async t => {
         let provider;
         let selector;
+        let semanticProvider;
         let disposed = 0;
         let pattern = "*.s2db.sql";
         const errors = [];
@@ -20,6 +21,12 @@ test("editor adapter maps WASM completions and discards stale or cancelled resul
                     provider = value;
                     return { dispose() { disposed++; } };
                 },
+                registerDocumentSemanticTokensProvider(valueSelector, value, legend) {
+                    assert.deepEqual(valueSelector, selector);
+                    assert.ok(legend.tokenTypes.includes("singlestoreKeyword"));
+                    semanticProvider = value;
+                    return { dispose() { disposed++; } };
+                },
             },
             window: {
                 setStatusBarMessage() {},
@@ -31,6 +38,10 @@ test("editor adapter maps WASM completions and discards stale or cancelled resul
             CompletionList: class {
                 constructor(items, isIncomplete) { this.items = items; this.isIncomplete = isIncomplete; }
             },
+            SemanticTokensLegend: class {
+                constructor(tokenTypes, tokenModifiers) { this.tokenTypes = tokenTypes; this.tokenModifiers = tokenModifiers; }
+            },
+            SemanticTokens: class { constructor(data) { this.data = data; } },
         };
         const load = Module._load;
         Module._load = function (id, ...args) {
@@ -58,6 +69,12 @@ test("editor adapter maps WASM completions and discards stale or cancelled resul
         assert.equal(select.insertText, "SELECT");
         assert.equal(select.filterText, undefined);
         assert.equal(select.commitCharacters, undefined);
+        const semantic = await semanticProvider.provideDocumentSemanticTokens(document, token);
+        assert.ok(semantic.data instanceof Uint32Array);
+        assert.ok(semantic.data.length > 0);
+        const staleSemantic = semanticProvider.provideDocumentSemanticTokens(document, token);
+        document.version++;
+        assert.equal(await staleSemantic, undefined);
 
         const stale = provider.provideCompletionItems(document, position, token);
         document.version++;
@@ -68,11 +85,11 @@ test("editor adapter maps WASM completions and discards stale or cancelled resul
         pattern = "*.sql";
         client.updateFilePattern();
         assert.deepEqual(selector.map(item => item.pattern), ["**/*.sql", "**/*.sql"]);
-        assert.equal(disposed, 1);
+        assert.equal(disposed, 2);
         pattern = "**/queries/*.sql";
         client.updateFilePattern();
         assert.deepEqual(selector.map(item => item.pattern), [pattern, pattern]);
-        assert.equal(disposed, 2);
+        assert.equal(disposed, 4);
         pattern = "";
         client.updateFilePattern();
         assert.deepEqual(selector.map(item => item.pattern), ["**/queries/*.sql", "**/queries/*.sql"]);
@@ -80,5 +97,5 @@ test("editor adapter maps WASM completions and discards stale or cancelled resul
         assert.deepEqual(errors, []);
         client.updateDatabaseConfig();
         await client.stopLanguageClient();
-        assert.equal(disposed, 4);
+        assert.equal(disposed, 7);
     });

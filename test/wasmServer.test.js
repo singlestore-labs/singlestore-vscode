@@ -15,12 +15,28 @@ function complete(server, text, version = 1, uri = "file:///test.s2db.sql") {
 test("bundled WASM completes, updates UTF-16 documents, closes and stops", { timeout: 30000 }, async t => {
     const server = new WasmServer(undefined, error => assert.fail(error));
     t.after(() => server.stop());
-    await server.request("initialize");
+    const legend = await server.request("initialize");
+    assert.deepEqual(legend.tokenTypes, ["unknown", "identifier", "string", "number", "operator", "keyword", "end_of_query", "comment"]);
     const initial = await complete(server, "SEL");
     assert.ok(initial.completions.some(item => item.label === "SELECT" && item.kind === 14));
     assert.equal(typeof initial.isIncomplete, "boolean");
+    const text = "SELECT '😀', 'a', 1; -- note";
+    const data = await server.request("semanticTokens", { uri: "file:///test.s2db.sql", text, version: 2 });
+    const tokens = [];
+    let line = 0;
+    let character = 0;
+    for (let i = 0; i < data.length; i += 5) {
+        line += data[i];
+        character = data[i] ? data[i + 1] : character + data[i + 1];
+        tokens.push({ line, character, length: data[i + 2], type: legend.tokenTypes[data[i + 3]] });
+    }
+    assert.ok(tokens.some(token => token.type === "keyword" && text.slice(token.character, token.character + token.length) === "SELECT"));
+    assert.ok(tokens.some(token => token.type === "string" && text.slice(token.character, token.character + token.length) === "'a'"));
+    assert.ok(tokens.some(token => token.type === "comment" && text.slice(token.character, token.character + token.length) === "-- note"));
+    const empty = await server.request("semanticTokens", { uri: "file:///test.s2db.sql", text: "", version: 3 });
+    assert.deepEqual(empty, []);
 
-    const changed = await complete(server, "-- 😀\r\nSEL", 2);
+    const changed = await complete(server, "-- 😀\r\nSEL", 4);
     assert.ok(changed.completions.some(item => item.label === "SELECT"));
     await assert.rejects(complete(server, "SELECT ", 1), /version/i);
     await server.request("close", { uri: "file:///test.s2db.sql" });

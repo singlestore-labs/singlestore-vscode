@@ -21,6 +21,35 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "configurationDefaults": {
+      "[singlestore-sql]": {
+        "editor.semanticHighlighting.enabled": true
+      }
+    },
+    "semanticTokenTypes": [
+      { "id": "singlestoreUnknown", "description": "Unclassified SingleStore SQL tokens" },
+      { "id": "singlestoreIdentifier", "superType": "variable", "description": "SingleStore SQL identifiers" },
+      { "id": "singlestoreString", "superType": "string", "description": "SingleStore SQL strings" },
+      { "id": "singlestoreNumber", "superType": "number", "description": "SingleStore SQL numbers" },
+      { "id": "singlestoreOperator", "superType": "operator", "description": "SingleStore SQL operators" },
+      { "id": "singlestoreKeyword", "superType": "keyword", "description": "SingleStore SQL keywords" },
+      { "id": "singlestoreEndOfQuery", "superType": "operator", "description": "SingleStore SQL statement delimiters" },
+      { "id": "singlestoreComment", "superType": "comment", "description": "SingleStore SQL comments" }
+    ],
+    "semanticTokenScopes": [
+      {
+        "scopes": {
+          "singlestoreUnknown": ["source.sql"],
+          "singlestoreIdentifier": ["variable.other.sql"],
+          "singlestoreString": ["string.quoted.sql"],
+          "singlestoreNumber": ["constant.numeric.sql"],
+          "singlestoreOperator": ["keyword.operator.sql"],
+          "singlestoreKeyword": ["keyword.sql"],
+          "singlestoreEndOfQuery": ["punctuation.terminator.statement.sql"],
+          "singlestoreComment": ["comment.sql"]
+        }
+      }
+    ],
     "languages": [
       {
         "id": "singlestore-sql",

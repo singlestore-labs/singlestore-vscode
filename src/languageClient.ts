@@ -4,11 +4,15 @@ import { WasmServer } from "./wasmServer";
 import { DatabaseConfig, errorMessage } from "./wasmTypes";
 import { completionPattern, getFilePattern } from "./fileAssociation";
 import { DEFAULT_SCHEMA_REFRESH_MINUTES, isSchemaRefreshInterval } from "./schemaRefreshConfig";
+import { SEMANTIC_TOKEN_TYPES, semanticTokenId } from "./semanticColors";
 
 let server: WasmServer | undefined;
 let registrations: vscode.Disposable[] = [];
 let completionRegistration: vscode.Disposable | undefined;
 let completionProvider: vscode.CompletionItemProvider | undefined;
+let semanticRegistration: vscode.Disposable | undefined;
+let semanticProvider: vscode.DocumentSemanticTokensProvider | undefined;
+let semanticLegend: vscode.SemanticTokensLegend | undefined;
 let restartTimeout: ReturnType<typeof setTimeout> | undefined;
 let restarting = Promise.resolve();
 let shuttingDown = false;
@@ -95,10 +99,38 @@ export async function startLanguageClient(): Promise<void> {
     });
     server = current;
     try {
-        await current.request("initialize", undefined);
+        const legend = await current.request("initialize", undefined);
         if (server !== current) {
             return;
         }
+        if (!Array.isArray(legend.tokenTypes) || !Array.isArray(legend.tokenModifiers) ||
+            legend.tokenTypes.length !== SEMANTIC_TOKEN_TYPES.length ||
+            new Set(legend.tokenTypes).size !== SEMANTIC_TOKEN_TYPES.length ||
+            legend.tokenTypes.some(type => !(SEMANTIC_TOKEN_TYPES as readonly string[]).includes(type))) {
+            throw new Error("The WASM semantic token legend is incompatible with this extension.");
+        }
+        semanticLegend = new vscode.SemanticTokensLegend(
+            legend.tokenTypes.map(semanticTokenId), legend.tokenModifiers
+        );
+        semanticProvider = {
+            async provideDocumentSemanticTokens(document, token) {
+                const version = document.version;
+                try {
+                    const data = await current.request("semanticTokens", {
+                        uri: document.uri.toString(), text: document.getText(), version,
+                    });
+                    if (token.isCancellationRequested || document.version !== version) {
+                        return;
+                    }
+                    return new vscode.SemanticTokens(new Uint32Array(data));
+                } catch (error) {
+                    if (server === current && !token.isCancellationRequested && document.version === version) {
+                        showError("Semantic highlighting failed", error);
+                    }
+                    return;
+                }
+            },
+        };
         completionProvider = {
             async provideCompletionItems(document, position, token) {
                 try {
@@ -193,15 +225,25 @@ export function updateSchemaRefreshInterval(): void {
 export function updateFilePattern(): void {
     try {
         const pattern = completionPattern(getFilePattern());
-        if (!completionProvider) {
+        if (!completionProvider || !semanticProvider || !semanticLegend) {
             return;
         }
-        const registration = vscode.languages.registerCompletionItemProvider([
+        const selector: vscode.DocumentSelector = [
             { scheme: "file", pattern },
             { scheme: "untitled", pattern },
-        ], completionProvider, ".", " ", "`");
+        ];
+        const registration = vscode.languages.registerCompletionItemProvider(selector, completionProvider, ".", " ", "`");
+        let semantic: vscode.Disposable;
+        try {
+            semantic = vscode.languages.registerDocumentSemanticTokensProvider(selector, semanticProvider, semanticLegend);
+        } catch (error) {
+            registration.dispose();
+            throw error;
+        }
         completionRegistration?.dispose();
+        semanticRegistration?.dispose();
         completionRegistration = registration;
+        semanticRegistration = semantic;
     } catch (error) {
         showError("Could not apply file pattern", error);
     }
@@ -244,6 +286,10 @@ async function stopServer(): Promise<void> {
     completionRegistration?.dispose();
     completionRegistration = undefined;
     completionProvider = undefined;
+    semanticRegistration?.dispose();
+    semanticRegistration = undefined;
+    semanticProvider = undefined;
+    semanticLegend = undefined;
     const current = server;
     server = undefined;
     await current?.stop();

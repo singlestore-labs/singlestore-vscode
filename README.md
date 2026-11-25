@@ -43,6 +43,14 @@ Host and username enable the database integration; password and database name ar
 2. Configure the database using **SingleStore: Connection Configuration** to load schema-aware completions.
 3. Schema metadata refreshes automatically at the configured interval (five minutes by default) while a database connection is configured. Choose **Never** to disable periodic refresh; the initial refresh still runs. Interval changes take effect immediately without restarting the server. After DDL or other external schema changes, run **SingleStore: Refresh Database Schema** to refresh immediately. Failed refreshes are reported and retried on the next interval without disabling grammar completions or replacing the last successfully loaded schema. Repeated automatic failures are logged in the extension host log; a notification appears on the first failure until a refresh succeeds.
 
+## Semantic highlighting
+
+The local server provides semantic highlighting for files matching the selected pattern. The connection configuration panel offers colors for each server token type. Enter a `#RGB` or `#RRGGBB` color or use the color picker; leave a field blank to use the theme's color. Color overrides are saved in the user-level `editor.semanticTokenColorCustomizations` under SingleStore-specific token names and do not change unrelated rules. Theme-specific or workspace settings may override them.
+
+Semantic highlighting is enabled by default for the SingleStore SQL language, unless explicitly disabled in VS Code settings. Files whose existing language association is preserved use that language's semantic-highlighting setting instead.
+
+The 0.2.2 server can report incorrect token positions after unquoted non-ASCII characters it does not recognize. Quoted Unicode strings and comments are supported.
+
 ## Development
 
 Run `npm install`, `npm test`, and `npm run package`. The WASM binaries and matching Go JavaScript runtime are bundled under `wasm/`, together with the upstream license. To update them, extract `server.wasm`, `wasm_exec.js`, and `LICENSE` from the same upstream WASM release archive into that directory. Always package runtime dependencies; the SQL executor requires `singlestore-nodejs`.

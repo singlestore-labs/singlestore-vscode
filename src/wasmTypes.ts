@@ -45,13 +45,25 @@ export interface CompletionResult {
     isIncomplete: boolean;
 }
 
+export interface SemanticLegend {
+    tokenTypes: string[];
+    tokenModifiers: string[];
+}
+
+export interface DocumentSnapshot {
+    uri: string;
+    text: string;
+    version: number;
+}
+
 export interface ServerRequests {
-    initialize: { params: undefined; result: void };
+    initialize: { params: undefined; result: SemanticLegend };
     refreshSchema: { params: undefined; result: void };
     complete: {
-        params: { uri: string; text: string; version: number; position: Position };
+        params: DocumentSnapshot & { position: Position };
         result: CompletionResult;
     };
+    semanticTokens: { params: DocumentSnapshot; result: number[] };
     close: { params: { uri: string }; result: void };
 }
 

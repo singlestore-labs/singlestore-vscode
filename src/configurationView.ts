@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { DEFAULT_FILE_PATTERN } from "./fileAssociation";
 import { DEFAULT_SCHEMA_REFRESH_MINUTES, isSchemaRefreshInterval } from "./schemaRefreshConfig";
+import { getSemanticColors, saveSemanticColors, SEMANTIC_TOKEN_TYPES } from "./semanticColors";
 
 /**
  * Password and database are optional (for passwordless accounts and server-level metadata).
@@ -78,6 +79,10 @@ export class ConnectionConfigPanel {
                         vscode.window.showInformationMessage(
                             "SingleStore database connection configuration saved."
                         );
+                        void this._panel.webview.postMessage({
+                            command: "semanticColorsSaved",
+                            colors: getSemanticColors(),
+                        });
                         if (this._onConfigSaved) {
                             this._onConfigSaved();
                         }
@@ -101,6 +106,7 @@ export class ConnectionConfigPanel {
         useSSL: boolean;
         filePattern: string;
         schemaRefreshInterval: number;
+        semanticColors: Record<string, string>;
     }) {
         const pattern = typeof data.filePattern === "string" ? data.filePattern.trim() : "";
         if (!pattern || pattern.includes("\\")) {
@@ -109,6 +115,7 @@ export class ConnectionConfigPanel {
         if (!isSchemaRefreshInterval(data.schemaRefreshInterval)) {
             throw new Error("Choose a valid schema refresh interval.");
         }
+        await saveSemanticColors(data.semanticColors);
         const config = vscode.workspace.getConfiguration("singlestore");
         await config.update("host", data.host, vscode.ConfigurationTarget.Global);
         await config.update("port", data.port, vscode.ConfigurationTarget.Global);
@@ -133,6 +140,7 @@ export class ConnectionConfigPanel {
                 useSSL: config.get<boolean>("useSSL", false),
                 filePattern: config.get<string>("filePattern", DEFAULT_FILE_PATTERN),
                 schemaRefreshInterval: config.get<number>("schemaRefreshInterval", DEFAULT_SCHEMA_REFRESH_MINUTES),
+                semanticColors: getSemanticColors(),
             },
         });
     }
@@ -285,6 +293,30 @@ export class ConnectionConfigPanel {
             background: var(--vscode-button-secondaryHoverBackground);
         }
 
+        .semantic-color-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .semantic-color-row label {
+            flex: 1;
+            margin: 0;
+        }
+
+        .semantic-color-row input[type="text"] {
+            width: 110px;
+        }
+
+        .semantic-color-row input[type="color"] {
+            width: 36px;
+            height: 30px;
+            padding: 0;
+            border: 0;
+            cursor: pointer;
+        }
+
         .description {
             color: var(--vscode-descriptionForeground);
             font-size: 0.85em;
@@ -375,6 +407,17 @@ export class ConnectionConfigPanel {
             <div class="description">The initial and manual schema refreshes are always available.</div>
         </div>
 
+        <div class="form-group">
+            <label>Semantic token colors</label>
+            <div class="description">Leave blank to use the theme color. Changes apply to SingleStore tokens in all themes.</div>
+            ${SEMANTIC_TOKEN_TYPES.map(type => `
+            <div class="semantic-color-row">
+                <label for="semantic-${type}">${type.replace(/_/g, " ")}</label>
+                <input type="text" id="semantic-${type}" placeholder="Theme default" aria-label="${type} color" />
+                <input type="color" id="semantic-picker-${type}" value="#808080" aria-label="Choose ${type} color" />
+            </div>`).join("")}
+        </div>
+
         <div class="actions">
             <button type="submit">Save</button>
             <button type="button" class="secondary" id="resetBtn">Reset</button>
@@ -393,6 +436,8 @@ export class ConnectionConfigPanel {
         const filePatternChoice = document.getElementById('filePatternChoice');
         const customFilePattern = document.getElementById('customFilePattern');
         const schemaRefreshInterval = document.getElementById('schemaRefreshInterval');
+        const semanticTypes = ${JSON.stringify(SEMANTIC_TOKEN_TYPES)};
+        let originalColors = {};
         const form = document.getElementById('configForm');
         const resetBtn = document.getElementById('resetBtn');
 
@@ -401,6 +446,10 @@ export class ConnectionConfigPanel {
 
         window.addEventListener('message', (event) => {
             const message = event.data;
+            if (message.command === 'semanticColorsSaved') {
+                originalColors = message.colors;
+                return;
+            }
             if (message.command === 'configLoaded') {
                 const data = message.data;
                 hostInput.value = data.host || '';
@@ -414,8 +463,26 @@ export class ConnectionConfigPanel {
                 customFilePattern.value = filePatternChoice.value === 'custom' ? pattern : '';
                 customFilePattern.hidden = filePatternChoice.value !== 'custom';
                 schemaRefreshInterval.value = String(data.schemaRefreshInterval);
+                originalColors = data.semanticColors || {};
+                for (const type of semanticTypes) {
+                    const input = document.getElementById('semantic-' + type);
+                    const picker = document.getElementById('semantic-picker-' + type);
+                    input.value = originalColors[type] || '';
+                    const color = input.value;
+                    if (/^#[0-9a-f]{6}$/i.test(color)) picker.value = color;
+                    else if (/^#[0-9a-f]{3}$/i.test(color)) picker.value = '#' + [...color.slice(1)].map(c => c + c).join('');
+                }
             }
         });
+
+        for (const type of semanticTypes) {
+            const input = document.getElementById('semantic-' + type);
+            const picker = document.getElementById('semantic-picker-' + type);
+            picker.addEventListener('input', () => { input.value = picker.value; });
+            input.addEventListener('input', () => {
+                if (/^#[0-9a-f]{6}$/i.test(input.value)) picker.value = input.value;
+            });
+        }
 
         filePatternChoice.addEventListener('change', () => {
             customFilePattern.hidden = filePatternChoice.value !== 'custom';
@@ -450,6 +517,17 @@ export class ConnectionConfigPanel {
                 validationMsg.style.display = 'block';
                 return;
             }
+            const semanticColors = {};
+            for (const type of semanticTypes) {
+                const color = document.getElementById('semantic-' + type).value.trim();
+                if (color === (originalColors[type] || '')) continue;
+                if (color && !/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color)) {
+                    validationMsg.textContent = 'Invalid color for ' + type + ': use #RGB or #RRGGBB.';
+                    validationMsg.style.display = 'block';
+                    return;
+                }
+                semanticColors[type] = color;
+            }
             validationMsg.style.display = 'none';
             vscode.postMessage({
                 command: 'saveConfig',
@@ -462,6 +540,7 @@ export class ConnectionConfigPanel {
                     useSSL: useSSLInput.checked,
                     filePattern,
                     schemaRefreshInterval: Number(schemaRefreshInterval.value),
+                    semanticColors,
                 },
             });
         });

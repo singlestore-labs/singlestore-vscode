@@ -28,7 +28,7 @@ test("configured server refreshes periodically, avoids overlaps, retries failure
     class FakeServer {
         constructor() { this.refreshes = []; servers.push(this); }
         request(method) {
-            if (method === "initialize") return Promise.resolve();
+            if (method === "initialize") return Promise.resolve({ tokenTypes: ["unknown", "identifier", "string", "number", "operator", "keyword", "end_of_query", "comment"], tokenModifiers: [] });
             if (method === "refreshSchema") {
                 const refresh = deferred();
                 this.refreshes.push(refresh);
@@ -49,7 +49,9 @@ test("configured server refreshes periodically, avoids overlaps, retries failure
         },
         languages: {
             registerCompletionItemProvider: () => ({ dispose() {} }),
+            registerDocumentSemanticTokensProvider: () => ({ dispose() {} }),
         },
+        SemanticTokensLegend: class {},
         window: {
             withProgress: (_options, task) => task(),
             showErrorMessage: message => errors.push(message),
@@ -168,11 +170,15 @@ test("offline grammar-only mode does not start periodic refresh", async t => {
             getConfiguration: () => ({ get: (_key, fallback) => fallback }),
             onDidCloseTextDocument: () => ({ dispose() {} }),
         },
-        languages: { registerCompletionItemProvider: () => ({ dispose() {} }) },
+        languages: { registerCompletionItemProvider: () => ({ dispose() {} }), registerDocumentSemanticTokensProvider: () => ({ dispose() {} }) },
+        SemanticTokensLegend: class {},
         window: { setStatusBarMessage() {}, showErrorMessage() {} },
     };
     class FakeServer {
-        async request(method) { assert.equal(method, "initialize"); }
+        async request(method) {
+            assert.equal(method, "initialize");
+            return { tokenTypes: ["unknown", "identifier", "string", "number", "operator", "keyword", "end_of_query", "comment"], tokenModifiers: [] };
+        }
         async stop() {}
     }
     const load = Module._load;
