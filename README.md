@@ -31,6 +31,7 @@ Open the configuration panel by running the command **SingleStore: Connection Co
 | `singlestore.databaseName` | | Name of the database to connect to |
 | `singlestore.useSSL` | `false` | Enable SSL for the database connection |
 | `singlestore.filePattern` | `*.s2db.sql` | User-wide VS Code glob selecting files for SingleStore completions and language association |
+| `singlestore.schemaRefreshInterval` | `5` | Automatic schema refresh interval in minutes: `1`, `5`, `30`, `60`, or `0` (never) |
 
 These settings can also be configured directly in VS Code's Settings (`Ctrl+,`) under **SingleStore connection settings**.
 
@@ -40,7 +41,7 @@ Host and username enable the database integration; password and database name ar
 
 1. Open or create a file matching the selected pattern to use local SQL completions.
 2. Configure the database using **SingleStore: Connection Configuration** to load schema-aware completions.
-3. After DDL or other external schema changes, run **SingleStore: Refresh Database Schema**. There is no automatic polling. Failed refreshes are reported without disabling grammar completions or replacing the last successfully loaded schema.
+3. Schema metadata refreshes automatically at the configured interval (five minutes by default) while a database connection is configured. Choose **Never** to disable periodic refresh; the initial refresh still runs. Interval changes take effect immediately without restarting the server. After DDL or other external schema changes, run **SingleStore: Refresh Database Schema** to refresh immediately. Failed refreshes are reported and retried on the next interval without disabling grammar completions or replacing the last successfully loaded schema. Repeated automatic failures are logged in the extension host log; a notification appears on the first failure until a refresh succeeds.
 
 ## Development
 

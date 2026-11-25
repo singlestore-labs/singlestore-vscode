@@ -3,6 +3,7 @@ import { isConfigurationComplete } from "./configurationView";
 import { WasmServer } from "./wasmServer";
 import { DatabaseConfig, errorMessage } from "./wasmTypes";
 import { completionPattern, getFilePattern } from "./fileAssociation";
+import { DEFAULT_SCHEMA_REFRESH_MINUTES, isSchemaRefreshInterval } from "./schemaRefreshConfig";
 
 let server: WasmServer | undefined;
 let registrations: vscode.Disposable[] = [];
@@ -11,6 +12,10 @@ let completionProvider: vscode.CompletionItemProvider | undefined;
 let restartTimeout: ReturnType<typeof setTimeout> | undefined;
 let restarting = Promise.resolve();
 let shuttingDown = false;
+let refreshTimer: ReturnType<typeof setInterval> | undefined;
+let refreshConfigured = false;
+let activeRefresh: { server: WasmServer; promise: Promise<void>; showProgress: boolean } | undefined;
+let automaticRefreshFailed = false;
 
 function getDatabaseConfig(): DatabaseConfig {
     const config = vscode.workspace.getConfiguration("singlestore");
@@ -29,22 +34,50 @@ function showError(message: string, error: unknown): void {
 }
 
 export async function refreshSchema(): Promise<void> {
+    await refreshDatabaseSchema(true);
+}
+
+async function refreshDatabaseSchema(showProgress: boolean): Promise<void> {
     const current = server;
     if (!current) {
-        void vscode.window.showErrorMessage("SingleStore: The local language server is not running.");
+        if (showProgress) {
+            void vscode.window.showErrorMessage("SingleStore: The local language server is not running.");
+        }
         return;
     }
+    if (!activeRefresh || activeRefresh.server !== current) {
+        activeRefresh = { server: current, promise: current.request("refreshSchema", undefined), showProgress };
+    }
+    const refresh = activeRefresh;
+    refresh.showProgress ||= showProgress;
     try {
-        await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Window,
-            title: "SingleStore: Refreshing database schema",
-        }, () => current.request("refreshSchema", undefined));
+        if (showProgress) {
+            await vscode.window.withProgress({
+                location: vscode.ProgressLocation.Window,
+                title: "SingleStore: Refreshing database schema",
+            }, () => refresh.promise);
+        } else {
+            await refresh.promise;
+        }
         if (server === current) {
-            vscode.window.setStatusBarMessage("SingleStore: Database schema refreshed", 3000);
+            automaticRefreshFailed = false;
+            if (showProgress) {
+                vscode.window.setStatusBarMessage("SingleStore: Database schema refreshed", 3000);
+            }
         }
     } catch (error) {
         if (server === current) {
-            showError("Could not refresh database schema; grammar completions remain available", error);
+            if (!showProgress) {
+                console.error("SingleStore: Automatic schema refresh failed:", error);
+            }
+            if (showProgress || (!refresh.showProgress && !automaticRefreshFailed)) {
+                showError("Could not refresh database schema; grammar completions remain available", error);
+            }
+            automaticRefreshFailed = true;
+        }
+    } finally {
+        if (activeRefresh === refresh) {
+            activeRefresh = undefined;
         }
     }
 }
@@ -120,6 +153,8 @@ export async function startLanguageClient(): Promise<void> {
         vscode.window.setStatusBarMessage("SingleStore: Local WASM server ready", 3000);
         if (configured) {
             void refreshSchema();
+            refreshConfigured = true;
+            updateSchemaRefreshInterval();
         }
     } catch (error) {
         if (server === current) {
@@ -127,6 +162,32 @@ export async function startLanguageClient(): Promise<void> {
             await stopServer();
         }
     }
+}
+
+export function updateSchemaRefreshInterval(): void {
+    if (refreshTimer !== undefined) {
+        clearInterval(refreshTimer);
+        refreshTimer = undefined;
+    }
+    const current = server;
+    if (!current || !refreshConfigured) {
+        return;
+    }
+    const interval = vscode.workspace.getConfiguration("singlestore")
+        .get<unknown>("schemaRefreshInterval", DEFAULT_SCHEMA_REFRESH_MINUTES);
+    if (!isSchemaRefreshInterval(interval)) {
+        showError("Invalid schema refresh interval", "Choose 1, 5, 30, 60, or 0 (never) minutes in settings.");
+        return;
+    }
+    if (interval === 0) {
+        return;
+    }
+    const timer = setInterval(() => {
+        if (refreshTimer === timer && server === current && !activeRefresh) {
+            void refreshDatabaseSchema(false);
+        }
+    }, interval * 60 * 1000);
+    refreshTimer = timer;
 }
 
 export function updateFilePattern(): void {
@@ -165,6 +226,13 @@ export async function stopLanguageClient(): Promise<void> {
 }
 
 async function stopServer(): Promise<void> {
+    if (refreshTimer !== undefined) {
+        clearInterval(refreshTimer);
+        refreshTimer = undefined;
+    }
+    automaticRefreshFailed = false;
+    refreshConfigured = false;
+    activeRefresh = undefined;
     if (restartTimeout) {
         clearTimeout(restartTimeout);
         restartTimeout = undefined;

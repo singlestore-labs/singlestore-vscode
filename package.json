@@ -75,6 +75,13 @@
           "default": false,
           "description": "Enable SSL for the database connection"
         },
+        "singlestore.schemaRefreshInterval": {
+          "type": "number",
+          "default": 5,
+          "enum": [1, 5, 30, 60, 0],
+          "enumDescriptions": ["Every minute", "Every 5 minutes", "Every 30 minutes", "Every hour", "Never"],
+          "description": "Automatic database schema refresh interval in minutes. 0 disables periodic refresh; initial and manual refreshes remain available."
+        },
         "singlestore.filePattern": {
           "type": "string",
           "scope": "application",

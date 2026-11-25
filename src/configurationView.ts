@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { DEFAULT_FILE_PATTERN } from "./fileAssociation";
+import { DEFAULT_SCHEMA_REFRESH_MINUTES, isSchemaRefreshInterval } from "./schemaRefreshConfig";
 
 /**
  * Password and database are optional (for passwordless accounts and server-level metadata).
@@ -99,10 +100,14 @@ export class ConnectionConfigPanel {
         databaseName: string;
         useSSL: boolean;
         filePattern: string;
+        schemaRefreshInterval: number;
     }) {
         const pattern = typeof data.filePattern === "string" ? data.filePattern.trim() : "";
         if (!pattern || pattern.includes("\\")) {
             throw new Error("The file pattern must be a non-empty VS Code glob using / as the path separator.");
+        }
+        if (!isSchemaRefreshInterval(data.schemaRefreshInterval)) {
+            throw new Error("Choose a valid schema refresh interval.");
         }
         const config = vscode.workspace.getConfiguration("singlestore");
         await config.update("host", data.host, vscode.ConfigurationTarget.Global);
@@ -112,6 +117,7 @@ export class ConnectionConfigPanel {
         await config.update("databaseName", data.databaseName, vscode.ConfigurationTarget.Global);
         await config.update("useSSL", data.useSSL, vscode.ConfigurationTarget.Global);
         await config.update("filePattern", pattern, vscode.ConfigurationTarget.Global);
+        await config.update("schemaRefreshInterval", data.schemaRefreshInterval, vscode.ConfigurationTarget.Global);
     }
 
     private _sendCurrentConfig() {
@@ -126,6 +132,7 @@ export class ConnectionConfigPanel {
                 databaseName: config.get<string>("databaseName", ""),
                 useSSL: config.get<boolean>("useSSL", false),
                 filePattern: config.get<string>("filePattern", DEFAULT_FILE_PATTERN),
+                schemaRefreshInterval: config.get<number>("schemaRefreshInterval", DEFAULT_SCHEMA_REFRESH_MINUTES),
             },
         });
     }
@@ -356,6 +363,18 @@ export class ConnectionConfigPanel {
             <div class="description">Choose one VS Code glob. Selecting all SQL files changes their language association; existing associations are preserved.</div>
         </div>
 
+        <div class="form-group">
+            <label for="schemaRefreshInterval">Automatic schema refresh</label>
+            <select id="schemaRefreshInterval">
+                <option value="1">Every minute</option>
+                <option value="5">Every 5 minutes</option>
+                <option value="30">Every 30 minutes</option>
+                <option value="60">Every hour</option>
+                <option value="0">Never</option>
+            </select>
+            <div class="description">The initial and manual schema refreshes are always available.</div>
+        </div>
+
         <div class="actions">
             <button type="submit">Save</button>
             <button type="button" class="secondary" id="resetBtn">Reset</button>
@@ -373,6 +392,7 @@ export class ConnectionConfigPanel {
         const useSSLInput = document.getElementById('useSSL');
         const filePatternChoice = document.getElementById('filePatternChoice');
         const customFilePattern = document.getElementById('customFilePattern');
+        const schemaRefreshInterval = document.getElementById('schemaRefreshInterval');
         const form = document.getElementById('configForm');
         const resetBtn = document.getElementById('resetBtn');
 
@@ -393,6 +413,7 @@ export class ConnectionConfigPanel {
                 filePatternChoice.value = pattern === '*.s2db.sql' || pattern === '*.sql' ? pattern : 'custom';
                 customFilePattern.value = filePatternChoice.value === 'custom' ? pattern : '';
                 customFilePattern.hidden = filePatternChoice.value !== 'custom';
+                schemaRefreshInterval.value = String(data.schemaRefreshInterval);
             }
         });
 
@@ -424,6 +445,11 @@ export class ConnectionConfigPanel {
                 validationMsg.style.display = 'block';
                 return;
             }
+            if (!['0', '1', '5', '30', '60'].includes(schemaRefreshInterval.value)) {
+                validationMsg.textContent = 'Choose a valid schema refresh interval.';
+                validationMsg.style.display = 'block';
+                return;
+            }
             validationMsg.style.display = 'none';
             vscode.postMessage({
                 command: 'saveConfig',
@@ -435,6 +461,7 @@ export class ConnectionConfigPanel {
                     databaseName: databaseNameInput.value.trim(),
                     useSSL: useSSLInput.checked,
                     filePattern,
+                    schemaRefreshInterval: Number(schemaRefreshInterval.value),
                 },
             });
         });

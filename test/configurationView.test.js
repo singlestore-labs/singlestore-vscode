@@ -47,7 +47,7 @@ test("configuration panel saves preset and custom globs and rejects invalid inpu
     const listeners = {};
     const elements = {};
     for (const id of ["host", "port", "username", "password", "databaseName", "useSSL",
-        "filePatternChoice", "customFilePattern", "configForm", "resetBtn", "validationMsg"]) {
+        "filePatternChoice", "customFilePattern", "schemaRefreshInterval", "configForm", "resetBtn", "validationMsg"]) {
         elements[id] = {
             value: "", checked: false, hidden: false, style: {},
             addEventListener(event, callback) { listeners[`${id}:${event}`] = callback; },
@@ -63,14 +63,17 @@ test("configuration panel saves preset and custom globs and rejects invalid inpu
     listeners["window:message"]({ data: messages.pop() });
     assert.equal(elements.filePatternChoice.value, "*.s2db.sql");
     assert.equal(elements.customFilePattern.hidden, true);
+    assert.equal(elements.schemaRefreshInterval.value, "5");
 
     elements.host.value = "localhost";
     elements.filePatternChoice.value = "*.sql";
+    elements.schemaRefreshInterval.value = "0";
     listeners["configForm:submit"]({ preventDefault() {} });
     let message = messages.pop();
     assert.equal(message.data.filePattern, "*.sql");
     await receiveMessage(message);
     assert.equal(saved.filePattern, "*.sql");
+    assert.equal(saved.schemaRefreshInterval, 0);
 
     elements.filePatternChoice.value = "custom";
     listeners["filePatternChoice:change"]();
@@ -81,9 +84,17 @@ test("configuration panel saves preset and custom globs and rejects invalid inpu
     assert.equal(message.data.filePattern, "**/queries/*.sql");
     await receiveMessage(message);
     assert.equal(saved.filePattern, "**/queries/*.sql");
+    await receiveMessage({ command: "loadConfig" });
+    listeners["window:message"]({ data: messages.pop() });
+    assert.equal(elements.schemaRefreshInterval.value, "0");
 
     elements.customFilePattern.value = "bad\\*.sql";
     listeners["configForm:submit"]({ preventDefault() {} });
     assert.match(elements.validationMsg.textContent, /instead/);
+    assert.equal(messages.length, 0);
+    elements.customFilePattern.value = "**/queries/*.sql";
+    elements.schemaRefreshInterval.value = "";
+    listeners["configForm:submit"]({ preventDefault() {} });
+    assert.match(elements.validationMsg.textContent, /refresh interval/);
     assert.equal(messages.length, 0);
 });

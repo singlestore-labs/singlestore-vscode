@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { ConnectionConfigPanel, isConfigurationComplete } from "./configurationView";
-import { startLanguageClient, stopLanguageClient, updateDatabaseConfig, refreshSchema, updateFilePattern } from "./languageClient";
+import { startLanguageClient, stopLanguageClient, updateDatabaseConfig, refreshSchema, updateFilePattern, updateSchemaRefreshInterval } from "./languageClient";
 import { FileAssociationManager } from "./fileAssociation";
 
 let statusBarItem: vscode.StatusBarItem;
@@ -41,6 +41,9 @@ export function activate(context: vscode.ExtensionContext) {
             }
             if (e.affectsConfiguration("files.associations")) {
                 associations.update();
+            }
+            if (e.affectsConfiguration("singlestore.schemaRefreshInterval")) {
+                updateSchemaRefreshInterval();
             }
             if (["host", "port", "username", "password", "databaseName", "useSSL"]
                 .some(key => e.affectsConfiguration(`singlestore.${key}`))) {
