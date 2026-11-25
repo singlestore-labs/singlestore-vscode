@@ -5,15 +5,18 @@ const test = require("node:test");
 test("editor adapter maps WASM completions and discards stale or cancelled results",
     { timeout: 30000 }, async t => {
         let provider;
+        let selector;
         let disposed = 0;
+        let pattern = "*.s2db.sql";
         const errors = [];
         const vscode = {
             workspace: {
-                getConfiguration: () => ({ get: (_key, fallback) => fallback }),
+                getConfiguration: () => ({ get: (key, fallback) => key === "filePattern" ? pattern : fallback }),
                 onDidCloseTextDocument: () => ({ dispose() { disposed++; } }),
             },
             languages: {
-                registerCompletionItemProvider(_selector, value) {
+                registerCompletionItemProvider(valueSelector, value) {
+                    selector = valueSelector;
                     provider = value;
                     return { dispose() { disposed++; } };
                 },
@@ -41,6 +44,7 @@ test("editor adapter maps WASM completions and discards stale or cancelled resul
         }
         t.after(() => client.stopLanguageClient());
         await client.startLanguageClient();
+        assert.deepEqual(selector.map(item => item.pattern), ["**/*.s2db.sql", "**/*.s2db.sql"]);
         const document = {
             uri: { toString: () => "file:///editor.s2db.sql" },
             getText: () => "SEL",
@@ -61,8 +65,20 @@ test("editor adapter maps WASM completions and discards stale or cancelled resul
         assert.equal(await provider.provideCompletionItems(document, position, {
             isCancellationRequested: true,
         }), undefined);
+        pattern = "*.sql";
+        client.updateFilePattern();
+        assert.deepEqual(selector.map(item => item.pattern), ["**/*.sql", "**/*.sql"]);
+        assert.equal(disposed, 1);
+        pattern = "**/queries/*.sql";
+        client.updateFilePattern();
+        assert.deepEqual(selector.map(item => item.pattern), [pattern, pattern]);
+        assert.equal(disposed, 2);
+        pattern = "";
+        client.updateFilePattern();
+        assert.deepEqual(selector.map(item => item.pattern), ["**/queries/*.sql", "**/queries/*.sql"]);
+        assert.match(errors.pop(), /file pattern/i);
         assert.deepEqual(errors, []);
         client.updateDatabaseConfig();
         await client.stopLanguageClient();
-        assert.equal(disposed, 2);
+        assert.equal(disposed, 4);
     });

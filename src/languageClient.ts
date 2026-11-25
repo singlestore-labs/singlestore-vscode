@@ -2,9 +2,12 @@ import * as vscode from "vscode";
 import { isConfigurationComplete } from "./configurationView";
 import { WasmServer } from "./wasmServer";
 import { DatabaseConfig, errorMessage } from "./wasmTypes";
+import { completionPattern, getFilePattern } from "./fileAssociation";
 
 let server: WasmServer | undefined;
 let registrations: vscode.Disposable[] = [];
+let completionRegistration: vscode.Disposable | undefined;
+let completionProvider: vscode.CompletionItemProvider | undefined;
 let restartTimeout: ReturnType<typeof setTimeout> | undefined;
 let restarting = Promise.resolve();
 let shuttingDown = false;
@@ -63,51 +66,49 @@ export async function startLanguageClient(): Promise<void> {
         if (server !== current) {
             return;
         }
-        registrations = [
-            vscode.languages.registerCompletionItemProvider([
-                { scheme: "file", pattern: "**/*.s2db.sql" },
-                { scheme: "untitled", pattern: "**/*.s2db.sql" },
-            ], {
-                async provideCompletionItems(document, position, token) {
-                    try {
-                        const version = document.version;
-                        const result = await current.request("complete", {
-                            uri: document.uri.toString(),
-                            text: document.getText(),
-                            version,
-                            position: { line: position.line, character: position.character },
-                        });
-                        if (token.isCancellationRequested || document.version !== version) {
-                            return;
-                        }
-                        return new vscode.CompletionList((result.completions ?? []).map(value => {
-                            const item = new vscode.CompletionItem(value.label,
-                                value.kind === undefined ? undefined : value.kind - 1);
-                            item.detail = value.detail;
-                            item.sortText = value.sortText || undefined;
-                            item.filterText = value.filterText || undefined;
-                            item.insertText = value.insertText || undefined;
-                            item.preselect = value.preselect;
-                            item.commitCharacters = value.commitChars ?? undefined;
-                            if (value.deprecated) {
-                                item.tags = [vscode.CompletionItemTag.Deprecated];
-                            }
-                            if (value.range) {
-                                item.range = new vscode.Range(
-                                    value.range.start.line, value.range.start.character,
-                                    value.range.end.line, value.range.end.character
-                                );
-                            }
-                            return item;
-                        }), result.isIncomplete);
-                    } catch (error) {
-                        if (server === current && !token.isCancellationRequested) {
-                            showError("Completion failed", error);
-                        }
+        completionProvider = {
+            async provideCompletionItems(document, position, token) {
+                try {
+                    const version = document.version;
+                    const result = await current.request("complete", {
+                        uri: document.uri.toString(),
+                        text: document.getText(),
+                        version,
+                        position: { line: position.line, character: position.character },
+                    });
+                    if (token.isCancellationRequested || document.version !== version) {
                         return;
                     }
-                },
-            }, ".", " ", "`"),
+                    return new vscode.CompletionList((result.completions ?? []).map(value => {
+                        const item = new vscode.CompletionItem(value.label,
+                            value.kind === undefined ? undefined : value.kind - 1);
+                        item.detail = value.detail;
+                        item.sortText = value.sortText || undefined;
+                        item.filterText = value.filterText || undefined;
+                        item.insertText = value.insertText || undefined;
+                        item.preselect = value.preselect;
+                        item.commitCharacters = value.commitChars ?? undefined;
+                        if (value.deprecated) {
+                            item.tags = [vscode.CompletionItemTag.Deprecated];
+                        }
+                        if (value.range) {
+                            item.range = new vscode.Range(
+                                value.range.start.line, value.range.start.character,
+                                value.range.end.line, value.range.end.character
+                            );
+                        }
+                        return item;
+                    }), result.isIncomplete);
+                } catch (error) {
+                    if (server === current && !token.isCancellationRequested) {
+                        showError("Completion failed", error);
+                    }
+                    return;
+                }
+            },
+        };
+        updateFilePattern();
+        registrations = [
             vscode.workspace.onDidCloseTextDocument(document => {
                 void current.request("close", { uri: document.uri.toString() }).catch(error => {
                     if (server === current) {
@@ -125,6 +126,23 @@ export async function startLanguageClient(): Promise<void> {
             showError("Could not start local language server", error);
             await stopServer();
         }
+    }
+}
+
+export function updateFilePattern(): void {
+    try {
+        const pattern = completionPattern(getFilePattern());
+        if (!completionProvider) {
+            return;
+        }
+        const registration = vscode.languages.registerCompletionItemProvider([
+            { scheme: "file", pattern },
+            { scheme: "untitled", pattern },
+        ], completionProvider, ".", " ", "`");
+        completionRegistration?.dispose();
+        completionRegistration = registration;
+    } catch (error) {
+        showError("Could not apply file pattern", error);
     }
 }
 
@@ -155,6 +173,9 @@ async function stopServer(): Promise<void> {
         registration.dispose();
     }
     registrations = [];
+    completionRegistration?.dispose();
+    completionRegistration = undefined;
+    completionProvider = undefined;
     const current = server;
     server = undefined;
     await current?.stop();

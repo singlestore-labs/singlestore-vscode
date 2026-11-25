@@ -25,7 +25,6 @@
       {
         "id": "singlestore-sql",
         "aliases": ["SingleStore SQL", "s2db"],
-        "extensions": [".s2db.sql"],
         "icon": {
           "light": "./icons/singlestore-light.png",
           "dark": "./icons/singlestore-dark.png"
@@ -75,6 +74,13 @@
           "type": "boolean",
           "default": false,
           "description": "Enable SSL for the database connection"
+        },
+        "singlestore.filePattern": {
+          "type": "string",
+          "scope": "application",
+          "default": "*.s2db.sql",
+          "minLength": 1,
+          "description": "File glob for SingleStore SQL completions and language association. Examples: *.s2db.sql, *.sql, **/queries/*.sql. The extension manages the corresponding user files.associations entry without replacing existing associations."
         }
       }
     }

@@ -1,10 +1,14 @@
 import * as vscode from "vscode";
 import { ConnectionConfigPanel, isConfigurationComplete } from "./configurationView";
-import { startLanguageClient, stopLanguageClient, updateDatabaseConfig, refreshSchema } from "./languageClient";
+import { startLanguageClient, stopLanguageClient, updateDatabaseConfig, refreshSchema, updateFilePattern } from "./languageClient";
+import { FileAssociationManager } from "./fileAssociation";
 
 let statusBarItem: vscode.StatusBarItem;
 
 export function activate(context: vscode.ExtensionContext) {
+    const associations = new FileAssociationManager(context.globalState);
+    context.subscriptions.push(associations);
+    associations.update();
     // Status bar item to show connection status
     statusBarItem = vscode.window.createStatusBarItem(
         vscode.StatusBarAlignment.Left,
@@ -31,13 +35,23 @@ export function activate(context: vscode.ExtensionContext) {
     // Watch for external configuration changes (e.g. via Settings UI)
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration((e) => {
-            if (e.affectsConfiguration("singlestore")) {
+            if (e.affectsConfiguration("singlestore.filePattern")) {
+                updateFilePattern();
+                associations.update();
+            }
+            if (e.affectsConfiguration("files.associations")) {
+                associations.update();
+            }
+            if (["host", "port", "username", "password", "databaseName", "useSSL"]
+                .some(key => e.affectsConfiguration(`singlestore.${key}`))) {
                 updateStatusBar();
-                // Restart the language client when configuration changes
                 updateDatabaseConfig();
             }
         })
     );
+    context.subscriptions.push(vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        void associations.update();
+    }));
 
     updateStatusBar();
 

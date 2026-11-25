@@ -30,14 +30,15 @@ Open the configuration panel by running the command **SingleStore: Connection Co
 | `singlestore.password` | | Password for database authentication |
 | `singlestore.databaseName` | | Name of the database to connect to |
 | `singlestore.useSSL` | `false` | Enable SSL for the database connection |
+| `singlestore.filePattern` | `*.s2db.sql` | User-wide VS Code glob selecting files for SingleStore completions and language association |
 
 These settings can also be configured directly in VS Code's Settings (`Ctrl+,`) under **SingleStore connection settings**.
 
-Host and username enable the database integration; password and database name are optional. Settings changes restart the local worker and reload metadata. The former language-server address setting is no longer used and can be removed from existing settings.
+Host and username enable the database integration; password and database name are optional. Database settings changes restart the local worker and reload metadata. The former language-server address setting is no longer used and can be removed from existing settings.
 
 ## Usage
 
-1. Open or create a file with the `.s2db.sql` extension to use local SQL completions.
+1. Open or create a file matching the selected pattern to use local SQL completions.
 2. Configure the database using **SingleStore: Connection Configuration** to load schema-aware completions.
 3. After DDL or other external schema changes, run **SingleStore: Refresh Database Schema**. There is no automatic polling. Failed refreshes are reported without disabling grammar completions or replacing the last successfully loaded schema.
 
@@ -51,7 +52,11 @@ This extension works well alongside the [SQLTools](https://marketplace.visualstu
 
 ## File Association
 
-The extension associates with files using the `.s2db.sql` extension and provides syntax support for SingleStore SQL.
+Select `*.s2db.sql`, `*.sql`, or a custom [VS Code glob](https://code.visualstudio.com/docs/editor/glob-patterns) in the connection panel, or set `singlestore.filePattern` in user settings. The selected pattern replaces the previous one; it does not add to it. Filename-only patterns match at any depth; patterns with `/` match the full path (for example `**/queries/*.sql`). Use `/` as the separator even on Windows.
+
+The extension adds the selected pattern to user `files.associations` as `singlestore-sql` so unopened files can use the language's icon. It removes its previously managed entry when the pattern changes, but never replaces or removes pre-existing entries. If an exact association conflicts, it warns and leaves that association unchanged; other more specific associations can also take precedence. Completion matching is independent of the language association.
+
+The displayed icon is controlled by the active file icon theme. Themes may override language icons with their own file or extension icons, or disable language icons entirely. Selecting `*.sql` changes the language mode of matching files and can affect other SQL extensions. Language association changes persist in user settings; remove the `files.associations` entry manually after uninstalling the extension if desired.
 
 ## Disclaimer
 

@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { DEFAULT_FILE_PATTERN } from "./fileAssociation";
 
 /**
  * Password and database are optional (for passwordless accounts and server-level metadata).
@@ -66,7 +67,13 @@ export class ConnectionConfigPanel {
             async (message) => {
                 switch (message.command) {
                     case "saveConfig":
-                        await this._saveConfiguration(message.data);
+                        try {
+                            await this._saveConfiguration(message.data);
+                        } catch (error) {
+                            const message = error instanceof Error ? error.message : String(error);
+                            void vscode.window.showErrorMessage(`SingleStore: Could not save configuration. ${message}`);
+                            return;
+                        }
                         vscode.window.showInformationMessage(
                             "SingleStore database connection configuration saved."
                         );
@@ -91,7 +98,12 @@ export class ConnectionConfigPanel {
         password: string;
         databaseName: string;
         useSSL: boolean;
+        filePattern: string;
     }) {
+        const pattern = typeof data.filePattern === "string" ? data.filePattern.trim() : "";
+        if (!pattern || pattern.includes("\\")) {
+            throw new Error("The file pattern must be a non-empty VS Code glob using / as the path separator.");
+        }
         const config = vscode.workspace.getConfiguration("singlestore");
         await config.update("host", data.host, vscode.ConfigurationTarget.Global);
         await config.update("port", data.port, vscode.ConfigurationTarget.Global);
@@ -99,6 +111,7 @@ export class ConnectionConfigPanel {
         await config.update("password", data.password, vscode.ConfigurationTarget.Global);
         await config.update("databaseName", data.databaseName, vscode.ConfigurationTarget.Global);
         await config.update("useSSL", data.useSSL, vscode.ConfigurationTarget.Global);
+        await config.update("filePattern", pattern, vscode.ConfigurationTarget.Global);
     }
 
     private _sendCurrentConfig() {
@@ -112,6 +125,7 @@ export class ConnectionConfigPanel {
                 password: config.get<string>("password", ""),
                 databaseName: config.get<string>("databaseName", ""),
                 useSSL: config.get<boolean>("useSSL", false),
+                filePattern: config.get<string>("filePattern", DEFAULT_FILE_PATTERN),
             },
         });
     }
@@ -193,7 +207,8 @@ export class ConnectionConfigPanel {
 
         input[type="text"],
         input[type="number"],
-        input[type="password"] {
+        input[type="password"],
+        select {
             width: 100%;
             box-sizing: border-box;
             padding: 6px 8px;
@@ -208,7 +223,8 @@ export class ConnectionConfigPanel {
 
         input[type="text"]:focus,
         input[type="number"]:focus,
-        input[type="password"]:focus {
+        input[type="password"]:focus,
+        select:focus {
             border-color: var(--focus-border);
         }
 
@@ -329,6 +345,17 @@ export class ConnectionConfigPanel {
             <div class="description">Enable SSL encryption for the connection.</div>
         </div>
 
+        <div class="form-group">
+            <label for="filePatternChoice">Files for SingleStore completions</label>
+            <select id="filePatternChoice">
+                <option value="*.s2db.sql">SingleStore SQL (*.s2db.sql)</option>
+                <option value="*.sql">All SQL files (*.sql)</option>
+                <option value="custom">Custom pattern</option>
+            </select>
+            <input type="text" id="customFilePattern" placeholder="e.g. **/queries/*.sql" aria-label="Custom file pattern" hidden />
+            <div class="description">Choose one VS Code glob. Selecting all SQL files changes their language association; existing associations are preserved.</div>
+        </div>
+
         <div class="actions">
             <button type="submit">Save</button>
             <button type="button" class="secondary" id="resetBtn">Reset</button>
@@ -344,6 +371,8 @@ export class ConnectionConfigPanel {
         const passwordInput = document.getElementById('password');
         const databaseNameInput = document.getElementById('databaseName');
         const useSSLInput = document.getElementById('useSSL');
+        const filePatternChoice = document.getElementById('filePatternChoice');
+        const customFilePattern = document.getElementById('customFilePattern');
         const form = document.getElementById('configForm');
         const resetBtn = document.getElementById('resetBtn');
 
@@ -360,7 +389,15 @@ export class ConnectionConfigPanel {
                 passwordInput.value = data.password || '';
                 databaseNameInput.value = data.databaseName || '';
                 useSSLInput.checked = data.useSSL || false;
+                const pattern = data.filePattern || '*.s2db.sql';
+                filePatternChoice.value = pattern === '*.s2db.sql' || pattern === '*.sql' ? pattern : 'custom';
+                customFilePattern.value = filePatternChoice.value === 'custom' ? pattern : '';
+                customFilePattern.hidden = filePatternChoice.value !== 'custom';
             }
+        });
+
+        filePatternChoice.addEventListener('change', () => {
+            customFilePattern.hidden = filePatternChoice.value !== 'custom';
         });
 
         const validationMsg = document.getElementById('validationMsg');
@@ -368,7 +405,7 @@ export class ConnectionConfigPanel {
         function validate() {
             const missing = [];
             if (!hostInput.value.trim()) missing.push('Host');
-            if (!usernameInput.value.trim()) missing.push('Username');
+            if (filePatternChoice.value === 'custom' && !customFilePattern.value.trim()) missing.push('Custom file pattern');
             return missing;
         }
 
@@ -377,6 +414,13 @@ export class ConnectionConfigPanel {
             const missing = validate();
             if (missing.length > 0) {
                 validationMsg.textContent = 'Required fields missing: ' + missing.join(', ');
+                validationMsg.style.display = 'block';
+                return;
+            }
+            const filePattern = filePatternChoice.value === 'custom'
+                ? customFilePattern.value.trim() : filePatternChoice.value;
+            if (filePattern.includes('\\\\')) {
+                validationMsg.textContent = 'Use / instead of \\\\ in file patterns.';
                 validationMsg.style.display = 'block';
                 return;
             }
@@ -390,6 +434,7 @@ export class ConnectionConfigPanel {
                     password: passwordInput.value,
                     databaseName: databaseNameInput.value.trim(),
                     useSSL: useSSLInput.checked,
+                    filePattern,
                 },
             });
         });
