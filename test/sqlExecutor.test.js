@@ -1,7 +1,10 @@
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const test = require("node:test");
 const driver = require("singlestore-nodejs/promise");
 const { SqlExecutor } = require("../out/sqlExecutor");
+const manifest = require("../package.json");
 
 const config = {
     host: "example.test", port: 3306, username: "reader",
@@ -47,8 +50,42 @@ test("executor preserves positional values, binds parameters and isolates databa
     assert.deepEqual(pools[0].ssl, { rejectUnauthorized: true });
     assert.equal(pools[0].rowsAsArray, true);
     assert.equal(pools[0].multipleStatements, false);
+    for (const pool of pools) {
+        assert.deepEqual(pool.connectAttributes, {
+            program_name: manifest.name, program_version: manifest.version,
+        });
+    }
     assert.deepEqual(queries[0].values, ["value"]);
     assert.equal(released, 3);
+});
+
+test("executor reads the runtime manifest and rejects invalid attributes", async t => {
+    let runtimeManifest = { name: "packaged-extension", version: "9.8.7" };
+    const readFile = fs.readFileSync;
+    t.mock.method(fs, "readFileSync", (file, ...args) => {
+        if (file === path.join(__dirname, "..", "package.json")) {
+            return JSON.stringify(runtimeManifest);
+        }
+        return readFile(file, ...args);
+    });
+    let poolOptions;
+    t.mock.method(driver, "createPool", options => {
+        poolOptions = options;
+        return {
+            async getConnection() {
+                return {
+                    async query() { return [[], []]; },
+                    release() {},
+                };
+            },
+        };
+    });
+    await new SqlExecutor(config).execute({ sql: "SELECT 1" });
+    assert.deepEqual(poolOptions.connectAttributes, {
+        program_name: "packaged-extension", program_version: "9.8.7",
+    });
+    runtimeManifest = { name: "packaged-extension", version: "" };
+    assert.throws(() => new SqlExecutor(config), /package\.json must contain a name and version/);
 });
 
 test("executor propagates database failures and destroys failed connections", async t => {

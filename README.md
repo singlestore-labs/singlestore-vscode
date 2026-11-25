@@ -8,6 +8,8 @@ No separate language server, Go installation, or server TCP/WebSocket endpoint i
 
 For schema-aware completions, provide a SingleStore database connection. The extension executes metadata queries through [singlestore-nodejs](https://github.com/singlestore-labs/singlestore-nodejs); credentials remain in the extension host and are not passed into WASM. The account needs permission for the language server's `INFORMATION_SCHEMA` and `SHOW` queries. SSL uses certificate verification when enabled.
 
+Database connections identify the extension using the `program_name` and `program_version` connection attributes from the installed extension's package manifest.
+
 ## Installation
 
 1. Download the `.vsix` file from the [Releases](https://github.com/singlestore-labs/singlestore-vscode/releases) page.

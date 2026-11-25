@@ -1,5 +1,17 @@
 import { createPool, Pool, PoolConnection } from "singlestore-nodejs/promise";
+import { readFileSync } from "fs";
+import * as path from "path";
 import { DatabaseConfig, SqlExecutionRequest, SqlResult, SqlValue } from "./wasmTypes";
+
+function getProgramAttributes(): { program_name: string; program_version: string } {
+    const manifest: unknown = JSON.parse(readFileSync(path.join(__dirname, "..", "package.json"), "utf8"));
+    if (!manifest || typeof manifest !== "object" || !("name" in manifest) || !("version" in manifest) ||
+        typeof manifest.name !== "string" || !manifest.name ||
+        typeof manifest.version !== "string" || !manifest.version) {
+        throw new Error("Extension package.json must contain a name and version.");
+    }
+    return { program_name: manifest.name, program_version: manifest.version };
+}
 
 function sqlValue(value: unknown): SqlValue {
     if (value === null || typeof value === "string" ||
@@ -14,6 +26,7 @@ function sqlValue(value: unknown): SqlValue {
 
 export class SqlExecutor {
     private readonly pools = new Map<string, Pool>();
+    private readonly programAttributes = getProgramAttributes();
 
     constructor(private readonly config: DatabaseConfig) {}
 
@@ -45,6 +58,7 @@ export class SqlExecutor {
                 dateStrings: true,
                 jsonStrings: true,
                 multipleStatements: false,
+                connectAttributes: this.programAttributes,
             });
             this.pools.set(database, pool);
         }

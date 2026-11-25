@@ -3,6 +3,7 @@ const { once } = require("node:events");
 const test = require("node:test");
 const singlestore = require("singlestore-nodejs");
 const { WasmServer } = require("../out/wasmServer");
+const manifest = require("../package.json");
 
 function complete(server, text, version = 1, uri = "file:///test.s2db.sql") {
     const lines = text.split("\n");
@@ -71,6 +72,9 @@ test("WASM refreshes metadata through the actual SingleStore driver and preserve
                 authCallback(auth, callback) {
                     assert.equal(auth.user, "metadata_reader");
                     assert.equal(auth.database, "demo");
+                    assert.equal(connection.clientHelloReply.connectAttributes.program_name, manifest.name);
+                    assert.equal(connection.clientHelloReply.connectAttributes.program_version, manifest.version);
+                    assert.ok(connection.clientHelloReply.connectAttributes._client_name);
                     callback(null);
                     connection._resetSequenceId();
                 },
