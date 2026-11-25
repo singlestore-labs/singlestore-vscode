@@ -4,7 +4,7 @@ A VS Code extension that provides SQL completions for [SingleStore](https://www.
 
 ## Prerequisites
 
-No separate language server, Go installation, or server TCP/WebSocket endpoint is required. Version **0.2.1** of the all-grammars WASM release runs locally in a worker, using its default **10.1.0** grammar. Grammar-only completions work without a database connection.
+No separate language server, Go installation, or server TCP/WebSocket endpoint is required. Version **0.2.2** of the all-grammars WASM release runs locally in a worker. When connected, it detects the database version and selects a compatible bundled grammar; offline it uses the default **10.1.0** grammar. If version detection fails, it logs a warning, uses the default grammar, and retries detection during schema refresh. Grammar-only completions work without a database connection.
 
 For schema-aware completions, provide a SingleStore database connection. The extension executes metadata queries through [singlestore-nodejs](https://github.com/singlestore-labs/singlestore-nodejs); credentials remain in the extension host and are not passed into WASM. The account needs permission for the language server's `INFORMATION_SCHEMA` and `SHOW` queries. SSL uses certificate verification when enabled.
 

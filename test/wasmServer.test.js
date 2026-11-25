@@ -72,7 +72,10 @@ test("WASM refreshes metadata through the actual SingleStore driver and preserve
                 }
                 let columns;
                 let rows = [];
-                if (sql === "SELECT DATABASE()") {
+                if (sql === "SELECT @@memsql_version") {
+                    columns = ["@@memsql_version"];
+                    rows = [["10.1.0"]];
+                } else if (sql === "SELECT DATABASE()") {
                     columns = ["DATABASE()"];
                     rows = [["demo"]];
                 } else if (sql.startsWith("SELECT ") && sql.includes(" FROM INFORMATION_SCHEMA.")) {
@@ -118,6 +121,7 @@ test("WASM refreshes metadata through the actual SingleStore driver and preserve
         });
 
         await server.request("initialize");
+        assert.ok(queries.includes("SELECT @@memsql_version"));
         await server.request("refreshSchema");
         assert.ok(queries.includes("SELECT DATABASE()"));
         assert.ok(queries.some(sql => sql.includes("INFORMATION_SCHEMA.COLUMNS")));

@@ -11,10 +11,11 @@ interface ApiResult {
     status?: string;
     success?: boolean;
     error?: string;
+    warning?: string;
 }
 
 interface WasmApi {
-    initServer(executor?: Pick<SqlExecutor, "execute">): ApiResult;
+    initServer(executor?: Pick<SqlExecutor, "execute">): ApiResult | Promise<ApiResult>;
     refreshSchema(): Promise<ApiResult>;
     didOpen(uri: string, text: string, languageId: string, version: number): ApiResult;
     didChange(uri: string, change: { baseVersion: number; version: number; text: string }): ApiResult;
@@ -44,6 +45,9 @@ function checked<T extends ApiResult>(result: T): T {
     if (result.error || result.success === false || result.status === "error") {
         throw new Error(result.error ?? "WASM server operation failed");
     }
+    if (result.warning) {
+        console.warn(`SingleStore WASM: ${result.warning}`);
+    }
     return result;
 }
 
@@ -62,7 +66,7 @@ async function handle(request: ServerRequest): Promise<unknown> {
         });
         const config: DatabaseConfig | undefined = workerData;
         const executor = config ? new SqlExecutor(config) : undefined;
-        checked(runtime.initServer(executor ? { execute: executor.execute.bind(executor) } : undefined));
+        checked(await runtime.initServer(executor ? { execute: executor.execute.bind(executor) } : undefined));
         initialized = true;
         return;
     }
