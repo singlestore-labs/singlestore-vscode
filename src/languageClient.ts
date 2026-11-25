@@ -1,29 +1,13 @@
-import * as net from "net";
 import * as vscode from "vscode";
-import {
-    LanguageClient,
-    LanguageClientOptions,
-    StreamInfo,
-} from "vscode-languageclient/node";
+import { isConfigurationComplete } from "./configurationView";
+import { WasmServer } from "./wasmServer";
+import { DatabaseConfig, errorMessage } from "./wasmTypes";
 
-let client: LanguageClient | undefined;
-let serverHost: string = ""
-let serverPort: number = 0;
-let restartTimeout: NodeJS.Timeout | undefined;
-
-interface DatabaseConfig {
-    host: string;
-    port: number;
-    database: string;
-    username: string;
-    password: string;
-    ssl: boolean;
-}
-
-interface ClientConfig {
-    name: string;
-    version: string;
-}
+let server: WasmServer | undefined;
+let registrations: vscode.Disposable[] = [];
+let restartTimeout: ReturnType<typeof setTimeout> | undefined;
+let restarting = Promise.resolve();
+let shuttingDown = false;
 
 function getDatabaseConfig(): DatabaseConfig {
     const config = vscode.workspace.getConfiguration("singlestore");
@@ -37,121 +21,141 @@ function getDatabaseConfig(): DatabaseConfig {
     };
 }
 
-function getClientConfiguration(): ClientConfig {
-    const ext = vscode.extensions.getExtension("singlestore.singlestore-vscode");
-    return {
-        name: ext?.packageJSON.displayName ?? "SingleStore VSCode Extension",
-        version: ext?.packageJSON.version ?? "0.0.0",
-    };
+function showError(message: string, error: unknown): void {
+    void vscode.window.showErrorMessage(`SingleStore: ${message}. ${errorMessage(error)}`);
 }
 
-function getLanguageServerAddress(): { host: string; port: number } {
-    const config = vscode.workspace.getConfiguration("singlestore");
-    const address = config.get<string>("languageServerAddress", "127.0.0.1:4040");
-    const parts = address.split(":");
-    return {
-        host: parts[0] || "127.0.0.1",
-        port: parseInt(parts[1], 10) || 4040,
-    };
-}
-
-function createServerConnection(): () => Promise<StreamInfo> {
-    return () => {
-        const { host, port } = getLanguageServerAddress();
-        serverHost = host;
-        serverPort = port;
-        return new Promise((resolve, reject) => {
-            const socket = net.connect({ host, port }, () => {
-                resolve({
-                    reader: socket,
-                    writer: socket,
-                });
-            });
-            socket.on("error", (err) => {
-                reject(err);
-            });
-        });
-    };
+export async function refreshSchema(): Promise<void> {
+    const current = server;
+    if (!current) {
+        void vscode.window.showErrorMessage("SingleStore: The local language server is not running.");
+        return;
+    }
+    try {
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Window,
+            title: "SingleStore: Refreshing database schema",
+        }, () => current.request("refreshSchema", undefined));
+        if (server === current) {
+            vscode.window.setStatusBarMessage("SingleStore: Database schema refreshed", 3000);
+        }
+    } catch (error) {
+        if (server === current) {
+            showError("Could not refresh database schema; grammar completions remain available", error);
+        }
+    }
 }
 
 export async function startLanguageClient(): Promise<void> {
-    if (client) {
+    if (server || shuttingDown) {
         return;
     }
-
-    const documentSelector = [
-        { scheme: "file", pattern: "**/*.s2db.sql" },
-        { scheme: "untitled", pattern: "**/*.s2db.sql" },
-    ];
-
-    const clientOptions: LanguageClientOptions = {
-        documentSelector,
-        initializationOptions: {
-            database: getDatabaseConfig(),
-            client: getClientConfiguration(),
-        },
-        diagnosticCollectionName: "singlestore",
-    };
-
-    client = new LanguageClient(
-        "singlestoreLSP",
-        "SingleStore Language Server",
-        createServerConnection(),
-        clientOptions
-    );
-
-    try {
-        await client.start();
-        vscode.window.setStatusBarMessage("SingleStore LSP: Connected", 3000);
-    } catch (err: any) {
-        vscode.window.showErrorMessage(
-            `SingleStore LSP: Failed to connect to the language server. ${err.message || err}`
-        );
-        client = undefined;
-    }
-}
-
-export async function updateDatabaseConfig(): Promise<void> {
-    const { host, port } = getLanguageServerAddress();
-    if (isClientRunning() && host === serverHost && port === serverPort) {
-        await client?.sendNotification("workspace/didChangeConfiguration", {
-            settings: {
-                database: getDatabaseConfig(),
-                client: getClientConfiguration(),
-            },
-        });
-    } else {
-        scheduleRestart();
-    }
-}
-
-export async function stopLanguageClient(): Promise<void> {
-    if (restartTimeout) {
-        clearTimeout(restartTimeout);
-        restartTimeout = undefined;
-    }
-    if (client) {
-        try {
-            await client.stop();
-        } catch {
-            // ignore errors during stop
+    const configured = isConfigurationComplete();
+    const current = new WasmServer(configured ? getDatabaseConfig() : undefined, error => {
+        if (server === current) {
+            showError("Local language server failed", error);
+            void stopServer().catch(error => showError("Could not stop local language server", error));
         }
-        client = undefined;
+    });
+    server = current;
+    try {
+        await current.request("initialize", undefined);
+        if (server !== current) {
+            return;
+        }
+        registrations = [
+            vscode.languages.registerCompletionItemProvider([
+                { scheme: "file", pattern: "**/*.s2db.sql" },
+                { scheme: "untitled", pattern: "**/*.s2db.sql" },
+            ], {
+                async provideCompletionItems(document, position, token) {
+                    try {
+                        const version = document.version;
+                        const result = await current.request("complete", {
+                            uri: document.uri.toString(),
+                            text: document.getText(),
+                            version,
+                            position: { line: position.line, character: position.character },
+                        });
+                        if (token.isCancellationRequested || document.version !== version) {
+                            return;
+                        }
+                        return new vscode.CompletionList((result.completions ?? []).map(value => {
+                            const item = new vscode.CompletionItem(value.label,
+                                value.kind === undefined ? undefined : value.kind - 1);
+                            item.detail = value.detail;
+                            item.sortText = value.sortText || undefined;
+                            item.filterText = value.filterText || undefined;
+                            item.insertText = value.insertText || undefined;
+                            item.preselect = value.preselect;
+                            item.commitCharacters = value.commitChars ?? undefined;
+                            if (value.deprecated) {
+                                item.tags = [vscode.CompletionItemTag.Deprecated];
+                            }
+                            if (value.range) {
+                                item.range = new vscode.Range(
+                                    value.range.start.line, value.range.start.character,
+                                    value.range.end.line, value.range.end.character
+                                );
+                            }
+                            return item;
+                        }), result.isIncomplete);
+                    } catch (error) {
+                        if (server === current && !token.isCancellationRequested) {
+                            showError("Completion failed", error);
+                        }
+                        return;
+                    }
+                },
+            }, ".", " ", "`"),
+            vscode.workspace.onDidCloseTextDocument(document => {
+                void current.request("close", { uri: document.uri.toString() }).catch(error => {
+                    if (server === current) {
+                        showError("Could not release document state", error);
+                    }
+                });
+            }),
+        ];
+        vscode.window.setStatusBarMessage("SingleStore: Local WASM server ready", 3000);
+        if (configured) {
+            void refreshSchema();
+        }
+    } catch (error) {
+        if (server === current) {
+            showError("Could not start local language server", error);
+            await stopServer();
+        }
     }
 }
 
-export function scheduleRestart(): void {
-    // Debounce restarts to avoid rapid cycling when multiple settings change at once
+export function updateDatabaseConfig(): void {
     if (restartTimeout) {
         clearTimeout(restartTimeout);
     }
-    restartTimeout = setTimeout(async () => {
+    restartTimeout = setTimeout(() => {
         restartTimeout = undefined;
-        await stopLanguageClient();
-        await startLanguageClient();
+        restarting = restarting.then(async () => {
+            await stopServer();
+            await startLanguageClient();
+        }).catch(error => showError("Could not restart local language server", error));
     }, 500);
 }
 
-export function isClientRunning(): boolean {
-    return client !== undefined;
+export async function stopLanguageClient(): Promise<void> {
+    shuttingDown = true;
+    await stopServer();
+}
+
+async function stopServer(): Promise<void> {
+    if (restartTimeout) {
+        clearTimeout(restartTimeout);
+        restartTimeout = undefined;
+    }
+    for (const registration of registrations) {
+        registration.dispose();
+    }
+    registrations = [];
+    const current = server;
+    server = undefined;
+    await current?.stop();
 }

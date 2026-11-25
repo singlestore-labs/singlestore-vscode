@@ -1,10 +1,12 @@
 # SingleStore Language Client for VS Code
 
-A VS Code extension that provides SQL language support for [SingleStore](https://www.singlestore.com/) by connecting to the SingleStore Language Server via LSP.
+A VS Code extension that provides SQL completions for [SingleStore](https://www.singlestore.com/) using the bundled WebAssembly SingleStore Language Server.
 
 ## Prerequisites
 
-This extension requires a running **SingleStore Language Server** to function. You can download the latest server release from the [singlestore-labs/language-server](https://github.com/singlestore-labs/language-server) GitHub repository.
+No separate language server, Go installation, or server TCP/WebSocket endpoint is required. Version **0.2.1** of the all-grammars WASM release runs locally in a worker, using its default **10.1.0** grammar. Grammar-only completions work without a database connection.
+
+For schema-aware completions, provide a SingleStore database connection. The extension executes metadata queries through [singlestore-nodejs](https://github.com/singlestore-labs/singlestore-nodejs); credentials remain in the extension host and are not passed into WASM. The account needs permission for the language server's `INFORMATION_SCHEMA` and `SHOW` queries. SSL uses certificate verification when enabled.
 
 ## Installation
 
@@ -18,8 +20,6 @@ Alternatively, search for **SingleStore Language Client** on the VS Code Marketp
 
 Open the configuration panel by running the command **SingleStore: Connection Configuration** from the Command Palette (`Ctrl+Shift+P`).
 
-![Connection Configuration](configuration.png)
-
 ### Settings
 
 | Setting | Default | Description |
@@ -30,15 +30,20 @@ Open the configuration panel by running the command **SingleStore: Connection Co
 | `singlestore.password` | | Password for database authentication |
 | `singlestore.databaseName` | | Name of the database to connect to |
 | `singlestore.useSSL` | `false` | Enable SSL for the database connection |
-| `singlestore.languageServerAddress` | `127.0.0.1:4040` | TCP address (host:port) of the language server |
 
 These settings can also be configured directly in VS Code's Settings (`Ctrl+,`) under **SingleStore connection settings**.
 
+Host and username enable the database integration; password and database name are optional. Settings changes restart the local worker and reload metadata. The former language-server address setting is no longer used and can be removed from existing settings.
+
 ## Usage
 
-1. Start the SingleStore Language Server (see [singlestore-labs/language-server](https://github.com/singlestore-labs/language-server) for instructions).
-2. Open VS Code and configure the connection using the **SingleStore: Connection Configuration** command.
-3. Open or create a file with the `.s2db.sql` extension to activate SQL language features.
+1. Open or create a file with the `.s2db.sql` extension to use local SQL completions.
+2. Configure the database using **SingleStore: Connection Configuration** to load schema-aware completions.
+3. After DDL or other external schema changes, run **SingleStore: Refresh Database Schema**. There is no automatic polling. Failed refreshes are reported without disabling grammar completions or replacing the last successfully loaded schema.
+
+## Development
+
+Run `npm install`, `npm test`, and `npm run package`. The WASM binaries and matching Go JavaScript runtime are bundled under `wasm/`, together with the upstream license. To update them, extract `server.wasm`, `wasm_exec.js`, and `LICENSE` from the same upstream WASM release archive into that directory. Always package runtime dependencies; the SQL executor requires `singlestore-nodejs`.
 
 ## Use with SQLTools
 

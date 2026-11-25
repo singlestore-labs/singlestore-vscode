@@ -1,7 +1,7 @@
 {
   "name": "singlestore-vscode",
   "displayName": "SingleStore Language Client",
-  "description": "SingleStore LSP client for VS Code",
+  "description": "Local WebAssembly SQL completions for SingleStore in VS Code",
   "version": "0.0.0",
   "publisher": "singlestore",
   "license": "Apache-2.0",
@@ -37,6 +37,10 @@
       {
         "command": "singlestore.openConnectionConfig",
         "title": "SingleStore: Connection Configuration"
+      },
+      {
+        "command": "singlestore.refreshSchema",
+        "title": "SingleStore: Refresh Database Schema"
       }
     ],
     "configuration": {
@@ -71,11 +75,6 @@
           "type": "boolean",
           "default": false,
           "description": "Enable SSL for the database connection"
-        },
-        "singlestore.languageServerAddress": {
-          "type": "string",
-          "default": "127.0.0.1:4040",
-          "description": "TCP address (host:port) of the language server"
         }
       }
     }
@@ -83,6 +82,7 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
+    "test": "npm run compile && node --test test/*.test.js",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
     "package": "vsce package",
@@ -95,6 +95,6 @@
     "typescript": "^4.9.5"
   },
   "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    "singlestore-nodejs": "^1.0.1"
   }
 }

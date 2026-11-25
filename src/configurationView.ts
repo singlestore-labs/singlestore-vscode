@@ -1,12 +1,12 @@
 import * as vscode from "vscode";
 
 /**
- * Checks whether the required connection fields (host, username, password) are filled in.
+ * Password and database are optional (for passwordless accounts and server-level metadata).
  */
 export function isConfigurationComplete(): boolean {
     const config = vscode.workspace.getConfiguration("singlestore");
-    const address = config.get<string>("languageServerAddress", "");
-    return address.trim().length > 0;
+    return config.get<string>("host", "").trim().length > 0 &&
+        config.get<string>("username", "").trim().length > 0;
 }
 
 export class ConnectionConfigPanel {
@@ -34,7 +34,7 @@ export class ConnectionConfigPanel {
 
         const panel = vscode.window.createWebviewPanel(
             ConnectionConfigPanel.viewType,
-            "SingleStore LSP Connection",
+            "SingleStore Database Connection",
             column || vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -68,7 +68,7 @@ export class ConnectionConfigPanel {
                     case "saveConfig":
                         await this._saveConfiguration(message.data);
                         vscode.window.showInformationMessage(
-                            "SingleStore LSP Connection configuration saved."
+                            "SingleStore database connection configuration saved."
                         );
                         if (this._onConfigSaved) {
                             this._onConfigSaved();
@@ -91,7 +91,6 @@ export class ConnectionConfigPanel {
         password: string;
         databaseName: string;
         useSSL: boolean;
-        languageServerAddress: string;
     }) {
         const config = vscode.workspace.getConfiguration("singlestore");
         await config.update("host", data.host, vscode.ConfigurationTarget.Global);
@@ -100,7 +99,6 @@ export class ConnectionConfigPanel {
         await config.update("password", data.password, vscode.ConfigurationTarget.Global);
         await config.update("databaseName", data.databaseName, vscode.ConfigurationTarget.Global);
         await config.update("useSSL", data.useSSL, vscode.ConfigurationTarget.Global);
-        await config.update("languageServerAddress", data.languageServerAddress, vscode.ConfigurationTarget.Global);
     }
 
     private _sendCurrentConfig() {
@@ -114,7 +112,6 @@ export class ConnectionConfigPanel {
                 password: config.get<string>("password", ""),
                 databaseName: config.get<string>("databaseName", ""),
                 useSSL: config.get<boolean>("useSSL", false),
-                languageServerAddress: config.get<string>("languageServerAddress", "127.0.0.1:4040"),
             },
         });
     }
@@ -131,7 +128,7 @@ export class ConnectionConfigPanel {
     }
 
     private _update() {
-        this._panel.title = "SingleStore LSP Connection";
+        this._panel.title = "SingleStore Database Connection";
         this._panel.webview.html = this._getHtmlForWebview();
     }
 
@@ -149,7 +146,7 @@ export class ConnectionConfigPanel {
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'none'; img-src ${this._panel.webview.cspSource}; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SingleStore LSP Connection</title>
+    <title>SingleStore Database Connection</title>
     <style nonce="${nonce}">
         :root {
             --input-bg: var(--vscode-input-background);
@@ -285,9 +282,9 @@ export class ConnectionConfigPanel {
 </head>
 <body>
     <img src="${logoUri}" alt="SingleStore" class="logo" />
-    <h1>SingleStore LSP Connection</h1>
-    <p class="subtitle">The configuration will be passed to the language server.
-    Configure your database connection credentials before using the extension.</p>
+    <h1>SingleStore Database Connection</h1>
+    <p class="subtitle">The language server runs locally using WebAssembly.
+    Configure a database connection to enable schema-aware completions.</p>
 
     <div id="validationMsg" style="display:none; padding:8px 12px; margin-bottom:16px; border-radius:3px;
         background:var(--vscode-inputValidation-warningBackground);
@@ -332,12 +329,6 @@ export class ConnectionConfigPanel {
             <div class="description">Enable SSL encryption for the connection.</div>
         </div>
 
-        <div class="form-group">
-            <label for="languageServerAddress">Language Server TCP Address</label>
-            <input type="text" id="languageServerAddress" placeholder="e.g. 127.0.0.1:4040" />
-            <div class="description">The TCP address (host:port) of the language server.</div>
-        </div>
-
         <div class="actions">
             <button type="submit">Save</button>
             <button type="button" class="secondary" id="resetBtn">Reset</button>
@@ -353,7 +344,6 @@ export class ConnectionConfigPanel {
         const passwordInput = document.getElementById('password');
         const databaseNameInput = document.getElementById('databaseName');
         const useSSLInput = document.getElementById('useSSL');
-        const languageServerAddressInput = document.getElementById('languageServerAddress');
         const form = document.getElementById('configForm');
         const resetBtn = document.getElementById('resetBtn');
 
@@ -370,7 +360,6 @@ export class ConnectionConfigPanel {
                 passwordInput.value = data.password || '';
                 databaseNameInput.value = data.databaseName || '';
                 useSSLInput.checked = data.useSSL || false;
-                languageServerAddressInput.value = data.languageServerAddress || '';
             }
         });
 
@@ -378,7 +367,8 @@ export class ConnectionConfigPanel {
 
         function validate() {
             const missing = [];
-            if (!languageServerAddressInput.value.trim()) missing.push('Language Server Address');
+            if (!hostInput.value.trim()) missing.push('Host');
+            if (!usernameInput.value.trim()) missing.push('Username');
             return missing;
         }
 
@@ -397,10 +387,9 @@ export class ConnectionConfigPanel {
                     host: hostInput.value.trim(),
                     port: parseInt(portInput.value, 10) || 3306,
                     username: usernameInput.value.trim(),
-                    password: passwordInput.value.trim(),
+                    password: passwordInput.value,
                     databaseName: databaseNameInput.value.trim(),
                     useSSL: useSSLInput.checked,
-                    languageServerAddress: languageServerAddressInput.value.trim(),
                 },
             });
         });

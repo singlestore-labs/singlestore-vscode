@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { ConnectionConfigPanel, isConfigurationComplete } from "./configurationView";
-import { startLanguageClient, stopLanguageClient, scheduleRestart, updateDatabaseConfig } from "./languageClient";
+import { startLanguageClient, stopLanguageClient, updateDatabaseConfig, refreshSchema } from "./languageClient";
 
 let statusBarItem: vscode.StatusBarItem;
 
@@ -23,6 +23,10 @@ export function activate(context: vscode.ExtensionContext) {
     );
 
     context.subscriptions.push(openConfigCommand);
+    context.subscriptions.push(vscode.commands.registerCommand(
+        "singlestore.refreshSchema",
+        refreshSchema
+    ));
 
     // Watch for external configuration changes (e.g. via Settings UI)
     context.subscriptions.push(
@@ -37,11 +41,9 @@ export function activate(context: vscode.ExtensionContext) {
 
     updateStatusBar();
 
-    // If configured, start the language client; otherwise prompt the user
-    if (isConfigurationComplete()) {
-        startLanguageClient();
-    } else {
-        promptForConfiguration(context);
+    void startLanguageClient();
+    if (!isConfigurationComplete()) {
+        void promptForConfiguration(context);
     }
 }
 
@@ -51,7 +53,7 @@ function updateStatusBar() {
         const host = config.get<string>("host", "");
         const port = config.get<number>("port", 3306);
         statusBarItem.text = "$(database) SingleStore: " + host + ":" + port;
-        statusBarItem.tooltip = "SingleStore — Connected configuration. Click to edit.";
+        statusBarItem.tooltip = "SingleStore — Database configuration is set. Click to edit.";
         statusBarItem.backgroundColor = undefined;
     } else {
         statusBarItem.text = "$(warning) SingleStore: Not Configured";
@@ -68,7 +70,7 @@ async function promptForConfiguration(
     context: vscode.ExtensionContext
 ): Promise<void> {
     const action = await vscode.window.showWarningMessage(
-        "SingleStore connection is not configured. Please provide your connection credentials before using the extension.",
+        "Configure a SingleStore database connection for schema-aware completions. Grammar completions are available offline.",
         "Configure Now"
     );
     if (action === "Configure Now") {
