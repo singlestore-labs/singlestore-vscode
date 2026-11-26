@@ -1,7 +1,7 @@
 {
   "name": "singlestore-vscode",
   "displayName": "SingleStore Client",
-  "description": "Local WebAssembly SQL completions for SingleStore in VS Code",
+  "description": "SingleStore database client for VS Code: manage connections, browse schemas, run SQL, and get grammar- and schema-aware completions.",
   "version": "0.0.0",
   "publisher": "singlestore",
   "license": "Apache-2.0",
