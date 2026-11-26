@@ -50,7 +50,7 @@ test("preferences panel saves preset and custom globs and rejects invalid input"
     const script = panel.webview.html.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)[1];
     const listeners = {};
     const elements = {};
-    for (const id of ["filePatternChoice", "customFilePattern", "schemaRefreshInterval",
+    for (const id of ["filePatternChoice", "customFilePattern", "schemaRefreshInterval", "queryRowLimit",
         "configForm", "resetBtn", "validationMsg",
         ...["unknown", "identifier", "string", "number", "operator", "keyword", "end_of_query", "comment"]
             .flatMap(type => [`semantic-${type}`, `semantic-picker-${type}`])]) {
@@ -70,10 +70,12 @@ test("preferences panel saves preset and custom globs and rejects invalid input"
     assert.equal(elements.filePatternChoice.value, "*.s2db.sql");
     assert.equal(elements.customFilePattern.hidden, true);
     assert.equal(elements.schemaRefreshInterval.value, "5");
+    assert.equal(elements.queryRowLimit.value, "200");
     assert.equal(elements["semantic-keyword"].value, "#abcdef");
 
     elements.filePatternChoice.value = "*.sql";
     elements.schemaRefreshInterval.value = "0";
+    elements.queryRowLimit.value = "25";
     elements["semantic-picker-string"].value = "#112233";
     listeners["semantic-picker-string:input"]();
     assert.equal(elements["semantic-string"].value, "#112233");
@@ -84,6 +86,7 @@ test("preferences panel saves preset and custom globs and rejects invalid input"
     await receiveMessage(message);
     assert.equal(saved.filePattern, "*.sql");
     assert.equal(saved.schemaRefreshInterval, 0);
+    assert.equal(saved.queryRowLimit, 25);
     assert.equal(editorSettings.rules.singlestoreString, "#112233");
     assert.equal(editorSettings.rules.singlestoreKeyword, undefined);
     assert.equal(editorSettings.rules.variable, "#123456");
@@ -113,6 +116,11 @@ test("preferences panel saves preset and custom globs and rejects invalid input"
     assert.match(elements.validationMsg.textContent, /refresh interval/);
     assert.equal(messages.length, 0);
     elements.schemaRefreshInterval.value = "5";
+    elements.queryRowLimit.value = "0";
+    listeners["configForm:submit"]({ preventDefault() {} });
+    assert.match(elements.validationMsg.textContent, /positive integer/);
+    assert.equal(messages.length, 0);
+    elements.queryRowLimit.value = "25";
     elements["semantic-number"].value = "blue";
     listeners["configForm:submit"]({ preventDefault() {} });
     assert.match(elements.validationMsg.textContent, /Invalid color/);

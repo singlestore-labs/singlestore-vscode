@@ -91,6 +91,7 @@ export class ConnectionConfigPanel {
     private async _saveConfiguration(data: {
         filePattern: string;
         schemaRefreshInterval: number;
+        queryRowLimit: number;
         semanticColors: Record<string, string>;
     }) {
         const pattern = typeof data.filePattern === "string" ? data.filePattern.trim() : "";
@@ -100,10 +101,14 @@ export class ConnectionConfigPanel {
         if (!isSchemaRefreshInterval(data.schemaRefreshInterval)) {
             throw new Error("Choose a valid schema refresh interval.");
         }
+        if (!Number.isSafeInteger(data.queryRowLimit) || data.queryRowLimit < 1) {
+            throw new Error("Result row limit must be a positive integer.");
+        }
         await saveSemanticColors(data.semanticColors);
         const config = vscode.workspace.getConfiguration("singlestore");
         await config.update("filePattern", pattern, vscode.ConfigurationTarget.Global);
         await config.update("schemaRefreshInterval", data.schemaRefreshInterval, vscode.ConfigurationTarget.Global);
+        await config.update("queryRowLimit", data.queryRowLimit, vscode.ConfigurationTarget.Global);
     }
 
     private _sendCurrentConfig() {
@@ -113,6 +118,7 @@ export class ConnectionConfigPanel {
             data: {
                 filePattern: config.get<string>("filePattern", DEFAULT_FILE_PATTERN),
                 schemaRefreshInterval: config.get<number>("schemaRefreshInterval", DEFAULT_SCHEMA_REFRESH_MINUTES),
+                queryRowLimit: config.get<number>("queryRowLimit", 200),
                 semanticColors: getSemanticColors(),
             },
         });
@@ -311,7 +317,7 @@ export class ConnectionConfigPanel {
 <body>
     <img src="${logoUri}" alt="SingleStore" class="logo" />
     <h1>SingleStore Preferences</h1>
-    <p class="subtitle">Customize SQL file matching, schema refresh, and semantic token colors.</p>
+    <p class="subtitle">Customize SQL file matching, query results, schema refresh, and semantic token colors.</p>
 
     <div id="validationMsg" style="display:none; padding:8px 12px; margin-bottom:16px; border-radius:3px;
         background:var(--vscode-inputValidation-warningBackground);
@@ -344,6 +350,12 @@ export class ConnectionConfigPanel {
         </div>
 
         <div class="form-group">
+            <label for="queryRowLimit">Maximum result rows</label>
+            <input type="number" id="queryRowLimit" min="1" step="1" />
+            <div class="description">Rows beyond this limit are streamed and discarded.</div>
+        </div>
+
+        <div class="form-group">
             <label>Semantic token colors</label>
             <div class="description">Leave blank to use the theme color. Changes apply to SingleStore tokens in all themes.</div>
             ${SEMANTIC_TOKEN_TYPES.map(type => `
@@ -366,6 +378,7 @@ export class ConnectionConfigPanel {
         const filePatternChoice = document.getElementById('filePatternChoice');
         const customFilePattern = document.getElementById('customFilePattern');
         const schemaRefreshInterval = document.getElementById('schemaRefreshInterval');
+        const queryRowLimit = document.getElementById('queryRowLimit');
         const semanticTypes = ${JSON.stringify(SEMANTIC_TOKEN_TYPES)};
         let originalColors = {};
         const form = document.getElementById('configForm');
@@ -387,6 +400,7 @@ export class ConnectionConfigPanel {
                 customFilePattern.value = filePatternChoice.value === 'custom' ? pattern : '';
                 customFilePattern.hidden = filePatternChoice.value !== 'custom';
                 schemaRefreshInterval.value = String(data.schemaRefreshInterval);
+                queryRowLimit.value = String(data.queryRowLimit);
                 originalColors = data.semanticColors || {};
                 for (const type of semanticTypes) {
                     const input = document.getElementById('semantic-' + type);
@@ -439,6 +453,11 @@ export class ConnectionConfigPanel {
                 validationMsg.style.display = 'block';
                 return;
             }
+            if (!queryRowLimit.value || !Number.isSafeInteger(Number(queryRowLimit.value)) || Number(queryRowLimit.value) < 1) {
+                validationMsg.textContent = 'Result row limit must be a positive integer.';
+                validationMsg.style.display = 'block';
+                return;
+            }
             const semanticColors = {};
             for (const type of semanticTypes) {
                 const color = document.getElementById('semantic-' + type).value.trim();
@@ -456,6 +475,7 @@ export class ConnectionConfigPanel {
                 data: {
                     filePattern,
                     schemaRefreshInterval: Number(schemaRefreshInterval.value),
+                    queryRowLimit: Number(queryRowLimit.value),
                     semanticColors,
                 },
             });

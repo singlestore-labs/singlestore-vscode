@@ -2,6 +2,26 @@ const assert = require("node:assert/strict");
 const Module = require("node:module");
 const test = require("node:test");
 
+test("connection toolbar and inline actions use command icons with hover titles", () => {
+    const { commands, menus } = require("../package.json").contributes;
+    const toolbar = menus["view/title"].filter(item => item.when === "view == singlestore.connections");
+    assert.deepEqual(toolbar.map(item => item.command).sort(), [
+        "singlestore.addConnection", "singlestore.openConnectionConfig", "singlestore.refreshSchema",
+    ]);
+    const inline = menus["view/item/context"].filter(item =>
+        item.when.includes("view == singlestore.connections") && item.group.startsWith("inline"));
+    assert.deepEqual(inline.map(item => item.command).sort(), [
+        "singlestore.connect", "singlestore.deleteConnection", "singlestore.disconnect", "singlestore.editConnection",
+    ]);
+    for (const item of [...toolbar, ...inline]) {
+        const command = commands.find(command => command.command === item.command);
+        assert.match(command.icon, /^\$\([a-z-]+\)$/);
+        assert.ok(command.title.length > 0);
+        assert.equal(item.icon, undefined, "icons belong on command contributions, not menu items");
+    }
+    assert.equal(commands.find(item => item.command === "singlestore.refreshSchema").icon, "$(refresh)");
+});
+
 test("connection view exposes connect and disconnect actions for the active profile", () => {
     class TreeItem {
         constructor(label, collapsibleState) {

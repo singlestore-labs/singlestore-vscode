@@ -22,12 +22,15 @@ Alternatively, search for **SingleStore Language Client** on the VS Code Marketp
 
 Use the **SingleStore** icon in the Activity Bar to add, connect, edit, or delete database profiles. Add and edit open a dedicated connection form with all profile fields; right-click a profile for its actions. Click an inactive profile to connect or the active profile to disconnect. Use **SingleStore: Preferences** for semantic colors and other SQL editor preferences.
 
+The Connections toolbar provides icon buttons for **Add Connection**, **Preferences**, and **Refresh Database Schema**. Hover over a connection to access **Connect/Disconnect**, **Edit Connection**, and **Delete Connection** icons. Hover over any button to see its action name.
+
 ### Preferences
 
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `singlestore.filePattern` | `*.s2db.sql` | User-wide VS Code glob selecting files for SingleStore completions and language association |
 | `singlestore.schemaRefreshInterval` | `5` | Automatic schema refresh interval in minutes: `1`, `5`, `30`, `60`, or `0` (never) |
+| `singlestore.queryRowLimit` | `200` | Maximum result rows retained and displayed per result set |
 
 These preferences can be configured in **SingleStore: Preferences** or VS Code Settings (`Ctrl+,`). When upgrading, existing global connection settings are migrated once into a profile named **Migrated connection**; its password is moved to SecretStorage and the old settings are removed.
 
@@ -36,6 +39,14 @@ These preferences can be configured in **SingleStore: Preferences** or VS Code S
 1. Open or create a file matching the selected pattern to use local SQL completions.
 2. Add and connect to a profile in the SingleStore Activity Bar view to load schema-aware completions.
 3. Schema metadata refreshes automatically at the configured interval (five minutes by default) while a database connection is configured. Choose **Never** to disable periodic refresh; the initial refresh still runs. Interval changes take effect immediately without restarting the server. After DDL or other external schema changes, run **SingleStore: Refresh Database Schema** to refresh immediately. Failed refreshes are reported and retried on the next interval without disabling grammar completions or replacing the last successfully loaded schema. Repeated automatic failures are logged in the extension host log; a notification appears on the first failure until a refresh succeeds.
+
+## Running queries
+
+Connect a profile and press **Ctrl+Enter** (**Cmd+Enter** on macOS) in a SQL editor, use the play button, or run **SingleStore: Execute Selection or Current Query**. If text is selected, it runs the selection; otherwise it runs the statement at the cursor. Separate commands are also available for **Execute Selected SQL** and **Execute Query at Cursor**. Statements are separated by `;` by default; MySQL-style `DELIMITER` directives on their own line change the delimiter. Delimiters in quoted strings, identifiers, and comments are ignored. Select complete statements when running a selection. The splitter assumes standard backslash escaping in quoted values; scripts that change `NO_BACKSLASH_ESCAPES` require special care.
+
+Selected statements run sequentially in the same SQL session and stop on the first error. A new results tab displays each result set or affected-row count, including errors. Query History in the SingleStore sidebar records each attempted statement, including failures, for the current VS Code session only. Click an entry to execute it on the **currently active** profile; its original connection is shown for reference. Clear the history using its toolbar button. Queries may contain sensitive literals.
+
+The row limit applies to each result set and can be changed in **SingleStore: Preferences** or VS Code Settings. Extra rows are streamed and discarded rather than retained, but the server still sends them. The SQL execution session is separate from the language server's metadata connections and persists across query runs until disconnecting, switching or editing the active profile, a connection failure, or extension shutdown. Session variables, temporary tables, and transactions therefore do not carry across those events; commit or roll back transactions explicitly.
 
 ## Object explorer
 

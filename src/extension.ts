@@ -5,6 +5,7 @@ import { ConnectionProfilePanel } from "./connectionProfilePanel";
 import { ConnectionTreeItem, ConnectionTreeProvider } from "./connectionView";
 import { startLanguageClient, stopLanguageClient, setDatabaseConfig, updateDatabaseConfig, refreshSchema, updateFilePattern, updateSchemaRefreshInterval, onSchemaChanged } from "./languageClient";
 import { FileAssociationManager } from "./fileAssociation";
+import { QueryView } from "./queryView";
 
 let statusBarItem: vscode.StatusBarItem;
 
@@ -18,6 +19,11 @@ export function activate(context: vscode.ExtensionContext) {
         showCollapseAll: false,
     });
     context.subscriptions.push(tree);
+    const queryView = new QueryView(store);
+    context.subscriptions.push(queryView);
+    context.subscriptions.push(vscode.window.createTreeView("singlestore.queryHistory", {
+        treeDataProvider: queryView,
+    }));
 
     const associations = new FileAssociationManager(context.globalState);
     context.subscriptions.push(associations);
@@ -37,6 +43,11 @@ export function activate(context: vscode.ExtensionContext) {
         ConnectionConfigPanel.createOrShow(context.extensionUri);
     });
     register("singlestore.refreshSchema", refreshSchema);
+    register("singlestore.executeQuery", () => queryView.runEditor("auto"));
+    register("singlestore.executeSelection", () => queryView.runEditor("selection"));
+    register("singlestore.executeCurrentQuery", () => queryView.runEditor("cursor"));
+    register("singlestore.rerunQuery", item => queryView.rerun(item));
+    register("singlestore.clearQueryHistory", () => queryView.clearHistory());
     register("singlestore.addConnection", async () => {
         ConnectionProfilePanel.createOrShow(undefined, async data => {
             await store.saveProfile({
@@ -67,6 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
                     await store.clearPassword(profile.id);
                 }
                 if (store.getActiveProfileId() === profile.id) {
+                    queryView.invalidateConnection();
                     setDatabaseConfig(await store.getDatabaseConfig(profile.id));
                     updateDatabaseConfig();
                     updateStatusBar(store);
@@ -88,8 +100,10 @@ export function activate(context: vscode.ExtensionContext) {
             );
             if (confirm !== "Delete") return;
             const wasActive = store.getActiveProfileId() === profile.id;
+            if (wasActive) queryView.invalidateConnection();
             await store.deleteProfile(profile.id);
             if (wasActive) {
+                queryView.invalidateConnection();
                 setDatabaseConfig(undefined);
                 updateDatabaseConfig();
             }
@@ -103,8 +117,10 @@ export function activate(context: vscode.ExtensionContext) {
         try {
             const profile = await resolveProfile(store, item);
             if (!profile) return;
+            queryView.invalidateConnection();
             setDatabaseConfig(await store.getDatabaseConfig(profile.id));
             await store.setActiveProfile(profile.id);
+            queryView.invalidateConnection();
             updateDatabaseConfig();
             provider.refresh();
             updateStatusBar(store);
@@ -115,7 +131,9 @@ export function activate(context: vscode.ExtensionContext) {
     });
     register("singlestore.disconnect", async () => {
         try {
+            queryView.invalidateConnection();
             await store.setActiveProfile(undefined);
+            queryView.invalidateConnection();
             setDatabaseConfig(undefined);
             updateDatabaseConfig();
             provider.refresh();

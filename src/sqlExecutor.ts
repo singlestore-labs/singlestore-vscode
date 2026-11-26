@@ -3,7 +3,7 @@ import { readFileSync } from "fs";
 import * as path from "path";
 import { DatabaseConfig, SqlExecutionRequest, SqlResult, SqlValue } from "./wasmTypes";
 
-function getProgramAttributes(): { program_name: string; program_version: string } {
+export function getProgramAttributes(): { program_name: string; program_version: string } {
     const manifest: unknown = JSON.parse(readFileSync(path.join(__dirname, "..", "package.json"), "utf8"));
     if (!manifest || typeof manifest !== "object" || !("name" in manifest) || !("version" in manifest) ||
         typeof manifest.name !== "string" || !manifest.name ||
@@ -13,7 +13,7 @@ function getProgramAttributes(): { program_name: string; program_version: string
     return { program_name: manifest.name, program_version: manifest.version };
 }
 
-function sqlValue(value: unknown): SqlValue {
+export function sqlValue(value: unknown): SqlValue {
     if (value === null || typeof value === "string" ||
         typeof value === "number" || typeof value === "boolean") {
         return value;

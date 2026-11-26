@@ -76,6 +76,10 @@
           "id": "singlestore.connections",
           "name": "Connections",
           "contextualTitle": "SingleStore Connections"
+        },
+        {
+          "id": "singlestore.queryHistory",
+          "name": "Query History"
         }
       ]
     },
@@ -83,64 +87,137 @@
       {
         "view": "singlestore.connections",
         "contents": "No SingleStore connections yet. [Add Connection](command:singlestore.addConnection)"
+      },
+      {
+        "view": "singlestore.queryHistory",
+        "contents": "Executed queries appear here for this VS Code session."
       }
     ],
     "commands": [
       {
         "command": "singlestore.openConnectionConfig",
-        "title": "SingleStore: Preferences"
+        "title": "SingleStore: Preferences",
+        "icon": "$(settings-gear)"
       },
       {
         "command": "singlestore.refreshSchema",
-        "title": "SingleStore: Refresh Database Schema"
+        "title": "SingleStore: Refresh Database Schema",
+        "icon": "$(refresh)"
       },
       {
         "command": "singlestore.addConnection",
-        "title": "SingleStore: Add Connection"
+        "title": "SingleStore: Add Connection",
+        "icon": "$(add)"
       },
       {
         "command": "singlestore.editConnection",
-        "title": "SingleStore: Edit Connection"
+        "title": "SingleStore: Edit Connection",
+        "icon": "$(edit)"
       },
       {
         "command": "singlestore.deleteConnection",
-        "title": "SingleStore: Delete Connection"
+        "title": "SingleStore: Delete Connection",
+        "icon": "$(trash)"
       },
       {
         "command": "singlestore.connect",
-        "title": "SingleStore: Connect"
+        "title": "SingleStore: Connect",
+        "icon": "$(plug)"
       },
       {
         "command": "singlestore.disconnect",
-        "title": "SingleStore: Disconnect"
+        "title": "SingleStore: Disconnect",
+        "icon": "$(debug-disconnect)"
       },
       {
         "command": "singlestore.focusConnections",
         "title": "SingleStore: Show Connections"
+      },
+      {
+        "command": "singlestore.executeQuery",
+        "title": "SingleStore: Execute Selection or Current Query",
+        "icon": "$(play)"
+      },
+      {
+        "command": "singlestore.executeSelection",
+        "title": "SingleStore: Execute Selected SQL"
+      },
+      {
+        "command": "singlestore.executeCurrentQuery",
+        "title": "SingleStore: Execute Query at Cursor"
+      },
+      {
+        "command": "singlestore.rerunQuery",
+        "title": "SingleStore: Re-execute Query",
+        "icon": "$(play)"
+      },
+      {
+        "command": "singlestore.clearQueryHistory",
+        "title": "SingleStore: Clear Query History",
+        "icon": "$(clear-all)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "singlestore.executeQuery",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && (editorLangId == singlestore-sql || editorLangId == sql)"
       }
     ],
     "menus": {
+      "editor/title": [
+        {
+          "command": "singlestore.executeQuery",
+          "when": "editorLangId == singlestore-sql || editorLangId == sql",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "singlestore.executeQuery",
+          "when": "editorLangId == singlestore-sql || editorLangId == sql",
+          "group": "1_modification"
+        }
+      ],
       "view/title": [
         {
+          "command": "singlestore.clearQueryHistory",
+          "when": "view == singlestore.queryHistory",
+          "group": "navigation"
+        },
+        {
           "command": "singlestore.addConnection",
-          "icon": "$(add)",
           "when": "view == singlestore.connections",
           "group": "navigation"
         },
         {
           "command": "singlestore.openConnectionConfig",
-          "icon": "$(settings-gear)",
           "when": "view == singlestore.connections",
           "group": "navigation"
         },
         {
           "command": "singlestore.refreshSchema",
-          "icon": "$(refresh)",
           "when": "view == singlestore.connections",
           "group": "navigation"
         }
       ],
       "view/item/context": [
+        {
+          "command": "singlestore.editConnection",
+          "when": "view == singlestore.connections && (viewItem == singlestoreConnection || viewItem == singlestoreConnectionActive)",
+          "group": "inline@2"
+        },
+        {
+          "command": "singlestore.deleteConnection",
+          "when": "view == singlestore.connections && (viewItem == singlestoreConnection || viewItem == singlestoreConnectionActive)",
+          "group": "inline@3"
+        },
+        {
+          "command": "singlestore.rerunQuery",
+          "when": "view == singlestore.queryHistory && viewItem == singlestoreQueryHistory",
+          "group": "inline"
+        },
         {
           "command": "singlestore.connect",
           "when": "view == singlestore.connections && viewItem == singlestoreConnection",
@@ -176,6 +253,12 @@
     "configuration": {
       "title": "SingleStore preferences",
       "properties": {
+        "singlestore.queryRowLimit": {
+          "type": "integer",
+          "default": 200,
+          "minimum": 1,
+          "description": "Maximum rows retained and displayed per query result. Additional rows are streamed and discarded."
+        },
         "singlestore.schemaRefreshInterval": {
           "type": "number",
           "default": 5,

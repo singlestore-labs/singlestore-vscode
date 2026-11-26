@@ -2,6 +2,18 @@ const assert = require("node:assert/strict");
 const Module = require("node:module");
 const test = require("node:test");
 
+test("execute-query shortcut is scoped to focused SQL editors", () => {
+    const binding = require("../package.json").contributes.keybindings.find(
+        entry => entry.command === "singlestore.executeQuery"
+    );
+    assert.deepEqual(binding, {
+        command: "singlestore.executeQuery",
+        key: "ctrl+enter",
+        mac: "cmd+enter",
+        when: "editorTextFocus && (editorLangId == singlestore-sql || editorLangId == sql)",
+    });
+});
+
 test("settings changes refresh preferences without treating connection values as settings", async () => {
     let onChange;
     let reschedules = 0;
@@ -53,6 +65,15 @@ test("settings changes refresh preferences without treating connection values as
         };
         if (id === "./connectionView") return {
             ConnectionTreeProvider: class { refresh() {} dispose() {} },
+        };
+        if (id === "./queryView") return {
+            QueryView: class {
+                dispose() {}
+                invalidateConnection() {}
+                runEditor() {}
+                rerun() {}
+                clearHistory() {}
+            },
         };
         if (id === "./fileAssociation") return {
             FileAssociationManager: class {
