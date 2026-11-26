@@ -16,7 +16,7 @@ test("connection view exposes connect and disconnect actions for the active prof
     }
     const vscode = {
         TreeItem,
-        TreeItemCollapsibleState: { None: 0 },
+        TreeItemCollapsibleState: { None: 0, Collapsed: 1 },
         ThemeIcon: class { constructor(id, color) { this.id = id; this.color = color; } },
         ThemeColor: class { constructor(id) { this.id = id; } },
         EventEmitter,
@@ -52,7 +52,39 @@ test("connection view exposes connect and disconnect actions for the active prof
     assert.equal(items[0].iconPath.color.id, "charts.green");
     assert.equal(items[1].iconPath.id, "debug-disconnect");
     assert.equal(items[1].iconPath.color.id, "charts.red");
+    assert.equal(items[0].collapsibleState, 1);
+    assert.equal(items[1].collapsibleState, 0);
     assert.match(items[0].description, /dev\.example:3306\/app/);
+
+    const activeItem = items[0];
+    provider.setSchema({
+        objects: [{
+            name: "Databases", kind: "category", children: [{
+                name: "app", kind: "database", children: [{
+                    name: "Tables", kind: "category", children: [{
+                        name: "accounts", kind: "table", children: [{
+                            name: "Columns", kind: "category", children: [
+                                { name: "id", kind: "column", detail: "bigint" },
+                            ],
+                        }],
+                    }],
+                }],
+            }],
+        }],
+        refreshedAt: "2026-11-26T12:00:00Z",
+    });
+    let children = provider.getChildren(activeItem);
+    assert.equal(children[0].label, "Databases");
+    assert.equal(children[0].command, undefined);
+    for (const label of ["app", "Tables", "accounts", "Columns", "id"]) {
+        children = provider.getChildren(children[0]);
+        assert.equal(children[0].label, label);
+    }
+    assert.equal(children[0].description, "bigint");
+    assert.equal(children[0].contextValue, "singlestoreSchemaObject");
+    assert.deepEqual(provider.getChildren(items[1]), []);
+    provider.setSchema(undefined);
+    assert.match(provider.getChildren(activeItem)[0].label, /Schema not loaded/);
 
     activeId = "prod";
     provider.refresh();

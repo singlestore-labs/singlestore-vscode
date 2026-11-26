@@ -4,6 +4,7 @@ import { DatabaseConfig, errorMessage } from "./wasmTypes";
 import { completionPattern, getFilePattern } from "./fileAssociation";
 import { DEFAULT_SCHEMA_REFRESH_MINUTES, isSchemaRefreshInterval } from "./schemaRefreshConfig";
 import { SEMANTIC_TOKEN_TYPES, semanticTokenId } from "./semanticColors";
+import { SchemaCatalog } from "./schemaCatalog";
 
 let server: WasmServer | undefined;
 let registrations: vscode.Disposable[] = [];
@@ -20,6 +21,18 @@ let refreshConfigured = false;
 let activeRefresh: { server: WasmServer; promise: Promise<void>; showProgress: boolean } | undefined;
 let automaticRefreshFailed = false;
 let databaseConfig: DatabaseConfig | undefined;
+let connectionGeneration = 0;
+let serverGeneration = 0;
+const schemaListeners = new Set<(catalog: SchemaCatalog | undefined) => void>();
+
+export function onSchemaChanged(listener: (catalog: SchemaCatalog | undefined) => void): vscode.Disposable {
+    schemaListeners.add(listener);
+    return { dispose: () => { schemaListeners.delete(listener); } };
+}
+
+function publishSchema(catalog: SchemaCatalog | undefined): void {
+    for (const listener of schemaListeners) listener(catalog);
+}
 
 function showError(message: string, error: unknown): void {
     void vscode.window.showErrorMessage(`SingleStore: ${message}. ${errorMessage(error)}`);
@@ -37,8 +50,20 @@ async function refreshDatabaseSchema(showProgress: boolean): Promise<void> {
         }
         return;
     }
+    if (serverGeneration !== connectionGeneration) {
+        if (showProgress) {
+            void vscode.window.showErrorMessage("SingleStore: The active connection is changing. Retry schema refresh once it is ready.");
+        }
+        return;
+    }
     if (!activeRefresh || activeRefresh.server !== current) {
-        activeRefresh = { server: current, promise: current.request("refreshSchema", undefined), showProgress };
+        const generation = serverGeneration;
+        const promise = current.request("refreshSchema", undefined).then(catalog => {
+            if (server === current && connectionGeneration === generation) {
+                publishSchema(catalog);
+            }
+        });
+        activeRefresh = { server: current, promise, showProgress };
     }
     const refresh = activeRefresh;
     refresh.showProgress ||= showProgress;
@@ -86,6 +111,7 @@ export async function startLanguageClient(): Promise<void> {
         }
     });
     server = current;
+    serverGeneration = connectionGeneration;
     try {
         const legend = await current.request("initialize", undefined);
         if (server !== current) {
@@ -251,7 +277,9 @@ export function updateDatabaseConfig(): void {
 }
 
 export function setDatabaseConfig(config: DatabaseConfig | undefined): void {
+    connectionGeneration++;
     databaseConfig = config;
+    publishSchema(undefined);
 }
 
 export async function stopLanguageClient(): Promise<void> {
@@ -260,6 +288,7 @@ export async function stopLanguageClient(): Promise<void> {
 }
 
 async function stopServer(): Promise<void> {
+    publishSchema(undefined);
     if (refreshTimer !== undefined) {
         clearInterval(refreshTimer);
         refreshTimer = undefined;

@@ -1,3 +1,5 @@
+import type { SchemaCatalog } from "./schemaCatalog";
+
 export interface DatabaseConfig {
     host: string;
     port: number;
@@ -58,7 +60,7 @@ export interface DocumentSnapshot {
 
 export interface ServerRequests {
     initialize: { params: undefined; result: SemanticLegend };
-    refreshSchema: { params: undefined; result: void };
+    refreshSchema: { params: undefined; result: SchemaCatalog };
     complete: {
         params: DocumentSnapshot & { position: Position };
         result: CompletionResult;

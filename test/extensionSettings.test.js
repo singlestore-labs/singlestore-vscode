@@ -68,6 +68,7 @@ test("settings changes refresh preferences without treating connection values as
             updateSchemaRefreshInterval() { reschedules++; },
             updateDatabaseConfig() { restarts++; },
             refreshSchema() {},
+            onSchemaChanged() { return disposable; },
         };
         return load.call(this, id, ...args);
     };

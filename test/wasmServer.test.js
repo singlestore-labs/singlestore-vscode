@@ -142,7 +142,14 @@ test("WASM refreshes metadata through the actual SingleStore driver and preserve
 
         await server.request("initialize");
         assert.ok(queries.includes("SELECT @@memsql_version"));
-        await server.request("refreshSchema");
+        const catalog = await server.request("refreshSchema");
+        const databases = catalog.objects.find(item => item.name === "Databases");
+        const demo = databases.children.find(item => item.name === "demo");
+        const accounts = demo.children.find(item => item.name === "Tables").children[0];
+        assert.equal(accounts.name, "wasm_accounts");
+        assert.equal(accounts.children[0].children[0].name, "account_id");
+        assert.equal(accounts.children[0].children[0].detail, "bigint");
+        assert.equal(queries.filter(sql => sql.includes("INFORMATION_SCHEMA.COLUMNS")).length, 1);
         assert.ok(queries.includes("SELECT DATABASE()"));
         assert.ok(queries.some(sql => sql.includes("INFORMATION_SCHEMA.COLUMNS")));
         const tables = await complete(server, "SELECT * FROM ");

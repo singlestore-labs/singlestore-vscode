@@ -37,6 +37,14 @@ These preferences can be configured in **SingleStore: Preferences** or VS Code S
 2. Add and connect to a profile in the SingleStore Activity Bar view to load schema-aware completions.
 3. Schema metadata refreshes automatically at the configured interval (five minutes by default) while a database connection is configured. Choose **Never** to disable periodic refresh; the initial refresh still runs. Interval changes take effect immediately without restarting the server. After DDL or other external schema changes, run **SingleStore: Refresh Database Schema** to refresh immediately. Failed refreshes are reported and retried on the next interval without disabling grammar completions or replacing the last successfully loaded schema. Repeated automatic failures are logged in the extension host log; a notification appears on the first failure until a refresh succeeds.
 
+## Object explorer
+
+Expand the active connection using its disclosure arrow in the **Connections** view. The tree reuses the language server's metadata queries; expanding objects does not execute additional queries or start a separate refresh timer.
+
+Databases contain tables, views, temporary tables, columns and indexes, pipelines, links, aggregates, extensions, functions and procedures with parameters, projections, and result tables. Connection-level categories include groups, users, roles, resource pools, hosts, character sets, collations, and variable names. Variable values are not displayed. Categories depend on metadata returned by the server and the account's permissions. Table groups are not available because the bundled language server does not query them.
+
+The tree updates only after a successful initial, automatic, or manual schema refresh. Failed refreshes preserve the last successful tree; disconnecting, changing the active profile, or editing its connection details clears it. Until the first successful refresh, the active connection displays **Schema not loaded**.
+
 ## Semantic highlighting
 
 The local server provides semantic highlighting for files matching the selected pattern. **SingleStore: Preferences** offers colors for each server token type. Enter a `#RGB` or `#RRGGBB` color or use the color picker; leave a field blank to use the theme's color. Color overrides are saved in the user-level `editor.semanticTokenColorCustomizations` under SingleStore-specific token names and do not change unrelated rules. Theme-specific or workspace settings may override them.

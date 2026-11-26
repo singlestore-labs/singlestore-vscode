@@ -3,7 +3,7 @@ import { ConnectionConfigPanel } from "./configurationView";
 import { ConnectionProfile, ConnectionStore } from "./connectionStore";
 import { ConnectionProfilePanel } from "./connectionProfilePanel";
 import { ConnectionTreeItem, ConnectionTreeProvider } from "./connectionView";
-import { startLanguageClient, stopLanguageClient, setDatabaseConfig, updateDatabaseConfig, refreshSchema, updateFilePattern, updateSchemaRefreshInterval } from "./languageClient";
+import { startLanguageClient, stopLanguageClient, setDatabaseConfig, updateDatabaseConfig, refreshSchema, updateFilePattern, updateSchemaRefreshInterval, onSchemaChanged } from "./languageClient";
 import { FileAssociationManager } from "./fileAssociation";
 
 let statusBarItem: vscode.StatusBarItem;
@@ -12,6 +12,7 @@ export function activate(context: vscode.ExtensionContext) {
     const store = new ConnectionStore(context);
     const provider = new ConnectionTreeProvider(store);
     context.subscriptions.push(provider);
+    context.subscriptions.push(onSchemaChanged(catalog => provider.setSchema(catalog)));
     const tree = vscode.window.createTreeView("singlestore.connections", {
         treeDataProvider: provider,
         showCollapseAll: false,

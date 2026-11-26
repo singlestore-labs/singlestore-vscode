@@ -3,6 +3,7 @@ import { readFile } from "fs/promises";
 import * as path from "path";
 import { parentPort, workerData } from "worker_threads";
 import { SqlExecutor } from "./sqlExecutor";
+import { SchemaCapture } from "./schemaCatalog";
 import {
     CompletionResult, DatabaseConfig, DocumentSnapshot, errorMessage, Position, SemanticLegend, ServerRequest,
 } from "./wasmTypes";
@@ -56,6 +57,7 @@ function checked<T extends ApiResult>(result: T): T {
 const versions = new Map<string, number>();
 let initialized = false;
 let refreshing = false;
+const schemaCapture = new SchemaCapture();
 
 function syncDocument({ uri, text, version }: DocumentSnapshot): void {
     const previous = versions.get(uri);
@@ -78,7 +80,13 @@ async function handle(request: ServerRequest): Promise<unknown> {
         });
         const config: DatabaseConfig | undefined = workerData;
         const executor = config ? new SqlExecutor(config) : undefined;
-        checked(await runtime.initServer(executor ? { execute: executor.execute.bind(executor) } : undefined));
+        checked(await runtime.initServer(executor ? {
+            async execute(request) {
+                const result = await executor.execute(request);
+                schemaCapture.capture(request, result);
+                return result;
+            },
+        } : undefined));
         initialized = true;
         return runtime.getSemanticTokenLegend();
     }
@@ -91,12 +99,14 @@ async function handle(request: ServerRequest): Promise<unknown> {
                 throw new Error("A schema refresh is already running");
             }
             refreshing = true;
+            schemaCapture.begin();
             try {
                 checked(await runtime.refreshSchema());
+                return schemaCapture.commit();
             } finally {
+                schemaCapture.discard();
                 refreshing = false;
             }
-            return;
         case "complete": {
             const { uri, version, position } = request.params;
             syncDocument(request.params);

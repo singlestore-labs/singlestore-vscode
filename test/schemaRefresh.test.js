@@ -81,6 +81,9 @@ test("configured server refreshes periodically, avoids overlaps, retries failure
     });
     t.after(() => client.stopLanguageClient());
     const flush = () => new Promise(resolve => setImmediate(resolve));
+    const catalogs = [];
+    const subscription = client.onSchemaChanged(catalog => catalogs.push(catalog));
+    t.after(() => subscription.dispose());
 
     await client.startLanguageClient();
     assert.equal(intervalMs, 300000);
@@ -89,8 +92,10 @@ test("configured server refreshes periodically, avoids overlaps, retries failure
     assert.equal(servers[0].refreshes.length, 1);
     const manual = client.refreshSchema();
     assert.equal(servers[0].refreshes.length, 1);
-    servers[0].refreshes[0].resolve();
+    const initialCatalog = { objects: [{ name: "Databases", kind: "category", children: [] }], refreshedAt: "initial" };
+    servers[0].refreshes[0].resolve(initialCatalog);
     await manual;
+    assert.deepEqual(catalogs, [initialCatalog]);
 
     timers[0].callback();
     assert.equal(servers[0].refreshes.length, 2);
@@ -102,6 +107,7 @@ test("configured server refreshes periodically, avoids overlaps, retries failure
     await flush();
     assert.equal(errors.length, 1);
     assert.match(errors[0], /offline/);
+    assert.deepEqual(catalogs, [initialCatalog]);
     const errorCount = errors.length;
     timers[0].callback();
     servers[0].refreshes[2].reject(new Error("still offline"));
@@ -145,6 +151,15 @@ test("configured server refreshes periodically, avoids overlaps, retries failure
     assert.equal(timers.at(-1).ms, 60000);
     lastTimer = timers.at(-1);
 
+    const lateRefresh = client.refreshSchema();
+    client.setDatabaseConfig({
+        host: "other", port: 3306, username: "test", password: "", database: "", ssl: false,
+    });
+    const countAfterSwitch = catalogs.length;
+    assert.equal(catalogs.at(-1), undefined);
+    servers[0].refreshes.at(-1).resolve({ objects: [], refreshedAt: "old-connection" });
+    await lateRefresh;
+    assert.equal(catalogs.length, countAfterSwitch);
     client.updateDatabaseConfig();
     await new Promise(resolve => setTimeout(resolve, 600));
     assert.equal(lastTimer.cleared, true);
@@ -152,7 +167,7 @@ test("configured server refreshes periodically, avoids overlaps, retries failure
     assert.equal(timers.length, timerCount + 2);
     assert.equal(timers.at(-1).ms, 60000);
     timers[0].callback();
-    assert.equal(servers[0].refreshes.length, 6);
+    assert.equal(servers[0].refreshes.length, 7);
     servers[1].refreshes[0].resolve();
     await flush();
     configuredInterval = 0;
