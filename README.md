@@ -20,7 +20,7 @@ Alternatively, search for **SingleStore Language Client** on the VS Code Marketp
 
 ## Configuration
 
-Use the **SingleStore** icon in the Activity Bar to add, connect, edit, or delete database profiles. Add and edit open a dedicated connection form with all profile fields; right-click a profile for its actions. Click an inactive profile to connect or the active profile to disconnect. Use **SingleStore: Preferences** for semantic colors and other SQL editor preferences.
+Use the **SingleStore** icon in the Activity Bar to add, connect, edit, or delete database profiles. Add and edit open a dedicated connection form with all profile fields; use **Test connection** in the form to check whether the entered parameters can connect without saving them (when editing, a blank password tests with the saved password unless **Remove saved password** is checked). Right-click a profile for its actions. Click an inactive profile to connect or the active profile to disconnect. Use **SingleStore: Preferences** for semantic colors and other SQL editor preferences.
 
 The Connections toolbar provides icon buttons for **Add Connection**, **Preferences**, and **Refresh Database Schema**. Hover over a connection to access **Connect/Disconnect**, **Edit Connection**, and **Delete Connection** icons. Hover over any button to see its action name.
 

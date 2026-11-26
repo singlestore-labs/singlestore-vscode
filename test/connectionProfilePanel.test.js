@@ -7,6 +7,7 @@ test("connection editor displays all fields and submits the complete profile in 
     let receiveMessage;
     let disposed = false;
     let onSave = async () => {};
+    let onTest = async () => {};
     const messages = [];
     const panel = {
         title: "",
@@ -52,7 +53,7 @@ test("connection editor displays all fields and submits the complete profile in 
         databaseName: "app",
         useSSL: true,
     };
-    ConnectionProfilePanel.createOrShow(profile, callback => onSave(callback));
+    ConnectionProfilePanel.createOrShow(profile, callback => onSave(callback), data => onTest(data));
 
     for (const id of ["name", "host", "port", "username", "password", "databaseName", "useSSL", "clearPassword"]) {
         assert.match(panel.webview.html, new RegExp(`id="${id}"`));
@@ -66,7 +67,7 @@ test("connection editor displays all fields and submits the complete profile in 
     const elements = {};
     for (const id of ["heading", "error", "name", "host", "port", "username", "password",
         "passwordHint", "clearPasswordField", "clearPassword", "databaseName", "useSSL",
-        "form", "save", "cancel"]) {
+        "form", "save", "test", "testStatus", "cancel"]) {
         elements[id] = {
             value: "",
             checked: false,
@@ -89,6 +90,31 @@ test("connection editor displays all fields and submits the complete profile in 
     assert.equal(elements.databaseName.value, "app");
     assert.equal(elements.useSSL.checked, true);
 
+    let tested;
+    let saved = false;
+    onSave = async () => { saved = true; };
+    onTest = async data => { tested = data; throw new Error("Access denied"); };
+    listeners["test:click"]();
+    assert.equal(elements.test.disabled, true);
+    assert.equal(elements.testStatus.textContent, "Testing connection…");
+    const testRequest = messages.pop();
+    assert.equal(testRequest.command, "test");
+    await receiveMessage(testRequest);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(tested.host, "db.example");
+    assert.equal(tested.password, "");
+    assert.equal(saved, false);
+    assert.equal(disposed, false);
+    const failure = messages.pop();
+    assert.deepEqual(failure, { command: "testResult", ok: false, message: "Connection failed: Access denied" });
+    listeners["window:message"]({ data: failure });
+    assert.equal(elements.test.disabled, false);
+    assert.equal(elements.testStatus.className, "status failure");
+
+    onTest = async () => {};
+    await receiveMessage(testRequest);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(messages.pop(), { command: "testResult", ok: true, message: "Connection succeeded." });
     let submitted;
     onSave = async data => { submitted = data; };
     elements.password.value = "replacement";

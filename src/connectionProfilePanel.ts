@@ -17,15 +17,19 @@ export class ConnectionProfilePanel {
 
     private readonly disposables: vscode.Disposable[] = [];
     private onSave: (data: ConnectionProfileFormData) => Promise<void>;
+    private onTest: (data: ConnectionProfileFormData) => Promise<void>;
+    private formGeneration = 0;
 
     static createOrShow(
         profile: ConnectionProfile | undefined,
-        onSave: (data: ConnectionProfileFormData) => Promise<void>
+        onSave: (data: ConnectionProfileFormData) => Promise<void>,
+        onTest: (data: ConnectionProfileFormData) => Promise<void>
     ): void {
         const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One;
 
         if (ConnectionProfilePanel.currentPanel) {
             ConnectionProfilePanel.currentPanel.onSave = onSave;
+            ConnectionProfilePanel.currentPanel.onTest = onTest;
             ConnectionProfilePanel.currentPanel.panel.reveal(column);
             ConnectionProfilePanel.currentPanel.update(profile);
             return;
@@ -37,19 +41,23 @@ export class ConnectionProfilePanel {
             column,
             { enableScripts: true, retainContextWhenHidden: true }
         );
-        ConnectionProfilePanel.currentPanel = new ConnectionProfilePanel(panel, profile, onSave);
+        ConnectionProfilePanel.currentPanel = new ConnectionProfilePanel(panel, profile, onSave, onTest);
     }
 
     private constructor(
         private readonly panel: vscode.WebviewPanel,
         profile: ConnectionProfile | undefined,
-        onSave: (data: ConnectionProfileFormData) => Promise<void>
+        onSave: (data: ConnectionProfileFormData) => Promise<void>,
+        onTest: (data: ConnectionProfileFormData) => Promise<void>
     ) {
         this.onSave = onSave;
+        this.onTest = onTest;
         panel.onDidDispose(() => this.dispose(), null, this.disposables);
         panel.webview.onDidReceiveMessage(message => {
             if (message.command === "save") {
                 void this.save(message.data);
+            } else if (message.command === "test") {
+                void this.test(message.data);
             } else if (message.command === "cancel") {
                 panel.dispose();
             }
@@ -59,7 +67,7 @@ export class ConnectionProfilePanel {
 
     private async save(value: unknown): Promise<void> {
         try {
-            const data = parseFormData(value);
+            const data = parseFormData(value, true);
             await this.onSave(data);
             await this.panel.webview.postMessage({ command: "saved" });
             this.panel.dispose();
@@ -69,7 +77,23 @@ export class ConnectionProfilePanel {
         }
     }
 
+    private async test(value: unknown): Promise<void> {
+        const generation = this.formGeneration;
+        let result: { command: string; ok: boolean; message: string };
+        try {
+            await this.onTest(parseFormData(value, false));
+            result = { command: "testResult", ok: true, message: "Connection succeeded." };
+        } catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            result = { command: "testResult", ok: false, message: `Connection failed: ${detail}` };
+        }
+        if (generation === this.formGeneration) {
+            await this.panel.webview.postMessage(result);
+        }
+    }
+
     private update(profile: ConnectionProfile | undefined): void {
+        this.formGeneration++;
         this.panel.title = profile ? "Edit SingleStore Connection" : "Add SingleStore Connection";
         this.panel.webview.html = this.getHtml(profile);
     }
@@ -130,6 +154,19 @@ export class ConnectionProfilePanel {
             background: var(--vscode-inputValidation-errorBackground);
             border: 1px solid var(--vscode-inputValidation-errorBorder);
         }
+        .status {
+            display: none;
+            padding: 8px 10px;
+            margin-top: 16px;
+            border: 1px solid var(--vscode-inputValidation-infoBorder);
+            background: var(--vscode-inputValidation-infoBackground);
+            overflow-wrap: anywhere;
+        }
+        .status.success { border-color: var(--vscode-testing-iconPassed, var(--vscode-charts-green)); }
+        .status.failure {
+            border-color: var(--vscode-inputValidation-errorBorder);
+            background: var(--vscode-inputValidation-errorBackground);
+        }
         .actions { display: flex; gap: 8px; margin-top: 24px; }
         button {
             padding: 7px 14px;
@@ -189,8 +226,10 @@ export class ConnectionProfilePanel {
         </div>
         <div class="actions">
             <button id="save" type="submit">Save connection</button>
+            <button id="test" class="secondary" type="button">Test connection</button>
             <button id="cancel" class="secondary" type="button">Cancel</button>
         </div>
+        <div id="testStatus" class="status" role="status" aria-live="polite"></div>
     </form>
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
@@ -205,33 +244,58 @@ export class ConnectionProfilePanel {
             ? 'Leave blank to keep the current password.'
             : 'Optional; leave blank for passwordless authentication.';
         byId('clearPasswordField').hidden = !initial.editing;
-        byId('form').addEventListener('submit', event => {
-            event.preventDefault();
+        function readForm() {
             const port = Number(byId('port').value);
             if (!Number.isInteger(port) || port < 1 || port > 65535) {
                 byId('error').textContent = 'Port must be an integer between 1 and 65535.';
                 byId('error').style.display = 'block';
-                return;
+                return undefined;
             }
             byId('error').style.display = 'none';
+            return {
+                name: byId('name').value.trim(),
+                host: byId('host').value.trim(),
+                port,
+                username: byId('username').value.trim(),
+                password: byId('password').value,
+                databaseName: byId('databaseName').value.trim(),
+                useSSL: byId('useSSL').checked,
+                clearPassword: byId('clearPassword').checked,
+            };
+        }
+        function showStatus(text, state) {
+            const status = byId('testStatus');
+            status.textContent = text;
+            status.className = 'status' + (state ? ' ' + state : '');
+            status.style.display = 'block';
+        }
+        byId('form').addEventListener('submit', event => {
+            event.preventDefault();
+            const data = readForm();
+            if (!data) return;
             byId('save').disabled = true;
-            vscode.postMessage({
-                command: 'save',
-                data: {
-                    name: byId('name').value.trim(),
-                    host: byId('host').value.trim(),
-                    port,
-                    username: byId('username').value.trim(),
-                    password: byId('password').value,
-                    databaseName: byId('databaseName').value.trim(),
-                    useSSL: byId('useSSL').checked,
-                    clearPassword: byId('clearPassword').checked,
-                },
-            });
+            vscode.postMessage({ command: 'save', data });
+        });
+        byId('test').addEventListener('click', () => {
+            const data = readForm();
+            if (!data) return;
+            if (!data.host || !data.username) {
+                byId('error').textContent = 'Host and username are required to test the connection.';
+                byId('error').style.display = 'block';
+                return;
+            }
+            byId('test').disabled = true;
+            showStatus('Testing connection…', '');
+            vscode.postMessage({ command: 'test', data });
         });
         byId('cancel').addEventListener('click', () => vscode.postMessage({ command: 'cancel' }));
         window.addEventListener('message', event => {
             if (event.data.command === 'saved') return;
+            if (event.data.command === 'testResult') {
+                byId('test').disabled = false;
+                showStatus(event.data.message, event.data.ok ? 'success' : 'failure');
+                return;
+            }
             byId('save').disabled = false;
             byId('error').textContent = event.data.message || 'Could not save this connection.';
             byId('error').style.display = 'block';
@@ -252,15 +316,17 @@ export class ConnectionProfilePanel {
     }
 }
 
-function parseFormData(value: unknown): ConnectionProfileFormData {
+function parseFormData(value: unknown, requireName: boolean): ConnectionProfileFormData {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
         throw new Error("Connection details are missing.");
     }
     const data = value as Record<string, unknown>;
-    if (typeof data.name !== "string" || !data.name.trim() ||
+    if (typeof data.name !== "string" || (requireName && !data.name.trim()) ||
         typeof data.host !== "string" || !data.host.trim() ||
         typeof data.username !== "string" || !data.username.trim()) {
-        throw new Error("Connection name, host, and username are required.");
+        throw new Error(requireName
+            ? "Connection name, host, and username are required."
+            : "Host and username are required.");
     }
     if (typeof data.port !== "number" || !Number.isInteger(data.port) || data.port < 1 || data.port > 65535) {
         throw new Error("Port must be an integer between 1 and 65535.");

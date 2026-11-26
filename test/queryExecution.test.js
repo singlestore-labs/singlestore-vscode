@@ -2,7 +2,7 @@ const assert = require("node:assert/strict");
 const { once } = require("node:events");
 const test = require("node:test");
 const driver = require("singlestore-nodejs");
-const { QuerySession } = require("../out/queryExecution");
+const { QuerySession, testConnection } = require("../out/queryExecution");
 
 test("streams capped results and executes successive statements on the same connection", { timeout: 15000 }, async t => {
     const server = driver.createServer();
@@ -70,4 +70,37 @@ test("streams capped results and executes successive statements on the same conn
     await waitStarted;
     session.dispose();
     await assert.rejects(pending, /connection closed/i);
+});
+
+test("testConnection succeeds for valid credentials, reports rejected ones, and closes the connection", { timeout: 15000 }, async t => {
+    const server = driver.createServer();
+    const connections = new Set();
+    server.on("connection", connection => {
+        connections.add(connection);
+        connection.on("error", () => {});
+        connection.stream.on("close", () => connections.delete(connection));
+        connection.serverHandshake({
+            protocolVersion: 10, serverVersion: "8.0.0", connectionId: 1,
+            statusFlags: 2, characterSet: 45, capabilityFlags: 0x00088209,
+            authCallback(auth, callback) {
+                callback(null, auth.user === "good" ? undefined : { message: "Access denied for user", code: 1045 });
+                connection._resetSequenceId();
+            },
+        });
+        connection.on("stmt_prepare", () => {
+            connection.writeOk();
+            connection._resetSequenceId();
+        });
+    });
+    server.listen(0, "127.0.0.1");
+    await once(server._server, "listening");
+    t.after(async () => {
+        for (const connection of connections) connection.stream.destroy();
+        await new Promise(resolve => server.close(resolve));
+    });
+    const config = { host: "127.0.0.1", port: server._server.address().port, password: "", database: "", ssl: false };
+    await testConnection({ ...config, username: "good" });
+    await assert.rejects(testConnection({ ...config, username: "bad" }), /Access denied/);
+    for (let i = 0; i < 50 && connections.size; i++) await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(connections.size, 0);
 });

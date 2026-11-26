@@ -9,6 +9,15 @@ export interface QueryResultSet {
     affectedRows?: number;
 }
 
+export async function testConnection(config: DatabaseConfig): Promise<void> {
+    const session = new QuerySession(config);
+    try {
+        await session.connect();
+    } finally {
+        session.dispose();
+    }
+}
+
 export class QuerySession {
     private readonly connection: Connection;
     private readonly controller = new AbortController();

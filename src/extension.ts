@@ -1,7 +1,9 @@
 import * as vscode from "vscode";
 import { ConnectionConfigPanel } from "./configurationView";
 import { ConnectionProfile, ConnectionStore } from "./connectionStore";
-import { ConnectionProfilePanel } from "./connectionProfilePanel";
+import { ConnectionProfileFormData, ConnectionProfilePanel } from "./connectionProfilePanel";
+import { testConnection } from "./queryExecution";
+import { DatabaseConfig } from "./wasmTypes";
 import { ConnectionTreeItem, ConnectionTreeProvider } from "./connectionView";
 import { startLanguageClient, stopLanguageClient, setDatabaseConfig, updateDatabaseConfig, refreshSchema, updateFilePattern, updateSchemaRefreshInterval, onSchemaChanged } from "./languageClient";
 import { FileAssociationManager } from "./fileAssociation";
@@ -59,7 +61,7 @@ export function activate(context: vscode.ExtensionContext) {
                 useSSL: data.useSSL,
             }, data.password);
             provider.refresh();
-        });
+        }, data => testConnection(formDatabaseConfig(data, data.password)));
     });
     register("singlestore.editConnection", async (item?: ConnectionTreeItem) => {
         try {
@@ -84,6 +86,12 @@ export function activate(context: vscode.ExtensionContext) {
                     updateStatusBar(store);
                 }
                 provider.refresh();
+            }, async data => {
+                let password = data.password;
+                if (!password && !data.clearPassword) {
+                    password = (await store.getDatabaseConfig(profile.id)).password;
+                }
+                await testConnection(formDatabaseConfig(data, password));
             });
         } catch (error) {
             showError("Could not open connection editor", error);
@@ -228,4 +236,15 @@ export async function deactivate(): Promise<void> {
     if (statusBarItem) {
         statusBarItem.dispose();
     }
+}
+
+function formDatabaseConfig(data: ConnectionProfileFormData, password: string): DatabaseConfig {
+    return {
+        host: data.host,
+        port: data.port,
+        username: data.username,
+        password,
+        database: data.databaseName,
+        ssl: data.useSSL,
+    };
 }
