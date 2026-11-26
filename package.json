@@ -61,49 +61,121 @@
         "configuration": "./language-configuration.json"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "singlestore",
+          "title": "SingleStore",
+          "icon": "./icons/singlestore-activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "singlestore": [
+        {
+          "id": "singlestore.connections",
+          "name": "Connections",
+          "contextualTitle": "SingleStore Connections"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "singlestore.connections",
+        "contents": "No SingleStore connections yet. [Add Connection](command:singlestore.addConnection)"
+      }
+    ],
     "commands": [
       {
         "command": "singlestore.openConnectionConfig",
-        "title": "SingleStore: Connection Configuration"
+        "title": "SingleStore: Preferences"
       },
       {
         "command": "singlestore.refreshSchema",
         "title": "SingleStore: Refresh Database Schema"
+      },
+      {
+        "command": "singlestore.addConnection",
+        "title": "SingleStore: Add Connection"
+      },
+      {
+        "command": "singlestore.editConnection",
+        "title": "SingleStore: Edit Connection"
+      },
+      {
+        "command": "singlestore.deleteConnection",
+        "title": "SingleStore: Delete Connection"
+      },
+      {
+        "command": "singlestore.connect",
+        "title": "SingleStore: Connect"
+      },
+      {
+        "command": "singlestore.disconnect",
+        "title": "SingleStore: Disconnect"
+      },
+      {
+        "command": "singlestore.focusConnections",
+        "title": "SingleStore: Show Connections"
       }
     ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "singlestore.addConnection",
+          "icon": "$(add)",
+          "when": "view == singlestore.connections",
+          "group": "navigation"
+        },
+        {
+          "command": "singlestore.openConnectionConfig",
+          "icon": "$(settings-gear)",
+          "when": "view == singlestore.connections",
+          "group": "navigation"
+        },
+        {
+          "command": "singlestore.refreshSchema",
+          "icon": "$(refresh)",
+          "when": "view == singlestore.connections",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "singlestore.connect",
+          "when": "view == singlestore.connections && viewItem == singlestoreConnection",
+          "group": "inline"
+        },
+        {
+          "command": "singlestore.disconnect",
+          "when": "view == singlestore.connections && viewItem == singlestoreConnectionActive",
+          "group": "inline"
+        },
+        {
+          "command": "singlestore.connect",
+          "when": "view == singlestore.connections && viewItem == singlestoreConnection",
+          "group": "1_connection"
+        },
+        {
+          "command": "singlestore.editConnection",
+          "when": "view == singlestore.connections && (viewItem == singlestoreConnection || viewItem == singlestoreConnectionActive)",
+          "group": "1_connection"
+        },
+        {
+          "command": "singlestore.deleteConnection",
+          "when": "view == singlestore.connections && (viewItem == singlestoreConnection || viewItem == singlestoreConnectionActive)",
+          "group": "1_connection"
+        },
+        {
+          "command": "singlestore.disconnect",
+          "when": "view == singlestore.connections && viewItem == singlestoreConnectionActive",
+          "group": "1_connection"
+        }
+      ]
+    },
     "configuration": {
-      "title": "SingleStore connection settings",
+      "title": "SingleStore preferences",
       "properties": {
-        "singlestore.host": {
-          "type": "string",
-          "default": "127.0.0.1",
-          "description": "SingleStore database host address"
-        },
-        "singlestore.port": {
-          "type": "number",
-          "default": 3306,
-          "description": "SingleStore database port number"
-        },
-        "singlestore.username": {
-          "type": "string",
-          "default": "",
-          "description": "Username for SingleStore database authentication"
-        },
-        "singlestore.password": {
-          "type": "string",
-          "default": "",
-          "description": "Password for SingleStore database authentication"
-        },
-        "singlestore.databaseName": {
-          "type": "string",
-          "default": "",
-          "description": "Name of the SingleStore database to connect to"
-        },
-        "singlestore.useSSL": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable SSL for the database connection"
-        },
         "singlestore.schemaRefreshInterval": {
           "type": "number",
           "default": 5,

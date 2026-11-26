@@ -3,15 +3,6 @@ import { DEFAULT_FILE_PATTERN } from "./fileAssociation";
 import { DEFAULT_SCHEMA_REFRESH_MINUTES, isSchemaRefreshInterval } from "./schemaRefreshConfig";
 import { getSemanticColors, saveSemanticColors, SEMANTIC_TOKEN_TYPES } from "./semanticColors";
 
-/**
- * Password and database are optional (for passwordless accounts and server-level metadata).
- */
-export function isConfigurationComplete(): boolean {
-    const config = vscode.workspace.getConfiguration("singlestore");
-    return config.get<string>("host", "").trim().length > 0 &&
-        config.get<string>("username", "").trim().length > 0;
-}
-
 export class ConnectionConfigPanel {
     public static currentPanel: ConnectionConfigPanel | undefined;
     public static readonly viewType = "singlestoreConnectionConfig";
@@ -37,7 +28,7 @@ export class ConnectionConfigPanel {
 
         const panel = vscode.window.createWebviewPanel(
             ConnectionConfigPanel.viewType,
-            "SingleStore Database Connection",
+            "SingleStore Preferences",
             column || vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -98,12 +89,6 @@ export class ConnectionConfigPanel {
     }
 
     private async _saveConfiguration(data: {
-        host: string;
-        port: number;
-        username: string;
-        password: string;
-        databaseName: string;
-        useSSL: boolean;
         filePattern: string;
         schemaRefreshInterval: number;
         semanticColors: Record<string, string>;
@@ -117,12 +102,6 @@ export class ConnectionConfigPanel {
         }
         await saveSemanticColors(data.semanticColors);
         const config = vscode.workspace.getConfiguration("singlestore");
-        await config.update("host", data.host, vscode.ConfigurationTarget.Global);
-        await config.update("port", data.port, vscode.ConfigurationTarget.Global);
-        await config.update("username", data.username, vscode.ConfigurationTarget.Global);
-        await config.update("password", data.password, vscode.ConfigurationTarget.Global);
-        await config.update("databaseName", data.databaseName, vscode.ConfigurationTarget.Global);
-        await config.update("useSSL", data.useSSL, vscode.ConfigurationTarget.Global);
         await config.update("filePattern", pattern, vscode.ConfigurationTarget.Global);
         await config.update("schemaRefreshInterval", data.schemaRefreshInterval, vscode.ConfigurationTarget.Global);
     }
@@ -132,12 +111,6 @@ export class ConnectionConfigPanel {
         this._panel.webview.postMessage({
             command: "configLoaded",
             data: {
-                host: config.get<string>("host", "127.0.0.1"),
-                port: config.get<number>("port", 3306),
-                username: config.get<string>("username", ""),
-                password: config.get<string>("password", ""),
-                databaseName: config.get<string>("databaseName", ""),
-                useSSL: config.get<boolean>("useSSL", false),
                 filePattern: config.get<string>("filePattern", DEFAULT_FILE_PATTERN),
                 schemaRefreshInterval: config.get<number>("schemaRefreshInterval", DEFAULT_SCHEMA_REFRESH_MINUTES),
                 semanticColors: getSemanticColors(),
@@ -157,7 +130,7 @@ export class ConnectionConfigPanel {
     }
 
     private _update() {
-        this._panel.title = "SingleStore Database Connection";
+        this._panel.title = "SingleStore Preferences";
         this._panel.webview.html = this._getHtmlForWebview();
     }
 
@@ -175,7 +148,7 @@ export class ConnectionConfigPanel {
     <meta http-equiv="Content-Security-Policy"
           content="default-src 'none'; img-src ${this._panel.webview.cspSource}; style-src 'nonce-${nonce}'; script-src 'nonce-${nonce}';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SingleStore Database Connection</title>
+    <title>SingleStore Preferences</title>
     <style nonce="${nonce}">
         :root {
             --input-bg: var(--vscode-input-background);
@@ -337,9 +310,8 @@ export class ConnectionConfigPanel {
 </head>
 <body>
     <img src="${logoUri}" alt="SingleStore" class="logo" />
-    <h1>SingleStore Database Connection</h1>
-    <p class="subtitle">The language server runs locally using WebAssembly.
-    Configure a database connection to enable schema-aware completions.</p>
+    <h1>SingleStore Preferences</h1>
+    <p class="subtitle">Customize SQL file matching, schema refresh, and semantic token colors.</p>
 
     <div id="validationMsg" style="display:none; padding:8px 12px; margin-bottom:16px; border-radius:3px;
         background:var(--vscode-inputValidation-warningBackground);
@@ -348,42 +320,6 @@ export class ConnectionConfigPanel {
         font-size:0.9em;"></div>
 
     <form id="configForm">
-        <div class="form-group">
-            <label for="host">Host</label>
-            <input type="text" id="host" placeholder="e.g. 127.0.0.1" />
-            <div class="description">The hostname or IP address of the SingleStore server.</div>
-        </div>
-
-        <div class="form-group">
-            <label for="port">Port</label>
-            <input type="number" id="port" min="1" max="65535" placeholder="e.g. 3306" />
-            <div class="description">The port number for the database connection.</div>
-        </div>
-
-        <div class="form-group">
-            <label for="username">Username</label>
-            <input type="text" id="username" placeholder="Enter username" />
-        </div>
-
-        <div class="form-group">
-            <label for="password">Password</label>
-            <input type="password" id="password" placeholder="Enter password" />
-        </div>
-
-        <div class="form-group">
-            <label for="databaseName">Database Name</label>
-            <input type="text" id="databaseName" placeholder="Enter database name" />
-            <div class="description">The name of the SingleStore database to connect to.</div>
-        </div>
-
-        <div class="form-group">
-            <div class="checkbox-group">
-                <input type="checkbox" id="useSSL" />
-                <label for="useSSL">Use SSL</label>
-            </div>
-            <div class="description">Enable SSL encryption for the connection.</div>
-        </div>
-
         <div class="form-group">
             <label for="filePatternChoice">Files for SingleStore completions</label>
             <select id="filePatternChoice">
@@ -427,12 +363,6 @@ export class ConnectionConfigPanel {
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
 
-        const hostInput = document.getElementById('host');
-        const portInput = document.getElementById('port');
-        const usernameInput = document.getElementById('username');
-        const passwordInput = document.getElementById('password');
-        const databaseNameInput = document.getElementById('databaseName');
-        const useSSLInput = document.getElementById('useSSL');
         const filePatternChoice = document.getElementById('filePatternChoice');
         const customFilePattern = document.getElementById('customFilePattern');
         const schemaRefreshInterval = document.getElementById('schemaRefreshInterval');
@@ -452,12 +382,6 @@ export class ConnectionConfigPanel {
             }
             if (message.command === 'configLoaded') {
                 const data = message.data;
-                hostInput.value = data.host || '';
-                portInput.value = data.port || '';
-                usernameInput.value = data.username || '';
-                passwordInput.value = data.password || '';
-                databaseNameInput.value = data.databaseName || '';
-                useSSLInput.checked = data.useSSL || false;
                 const pattern = data.filePattern || '*.s2db.sql';
                 filePatternChoice.value = pattern === '*.s2db.sql' || pattern === '*.sql' ? pattern : 'custom';
                 customFilePattern.value = filePatternChoice.value === 'custom' ? pattern : '';
@@ -491,10 +415,8 @@ export class ConnectionConfigPanel {
         const validationMsg = document.getElementById('validationMsg');
 
         function validate() {
-            const missing = [];
-            if (!hostInput.value.trim()) missing.push('Host');
-            if (filePatternChoice.value === 'custom' && !customFilePattern.value.trim()) missing.push('Custom file pattern');
-            return missing;
+            return filePatternChoice.value === 'custom' && !customFilePattern.value.trim()
+                ? ['Custom file pattern'] : [];
         }
 
         form.addEventListener('submit', (e) => {
@@ -532,12 +454,6 @@ export class ConnectionConfigPanel {
             vscode.postMessage({
                 command: 'saveConfig',
                 data: {
-                    host: hostInput.value.trim(),
-                    port: parseInt(portInput.value, 10) || 3306,
-                    username: usernameInput.value.trim(),
-                    password: passwordInput.value,
-                    databaseName: databaseNameInput.value.trim(),
-                    useSSL: useSSLInput.checked,
                     filePattern,
                     schemaRefreshInterval: Number(schemaRefreshInterval.value),
                     semanticColors,

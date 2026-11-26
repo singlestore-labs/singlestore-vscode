@@ -3,7 +3,7 @@ const Module = require("node:module");
 const test = require("node:test");
 const vm = require("node:vm");
 
-test("configuration panel saves preset and custom globs and rejects invalid input", async () => {
+test("preferences panel saves preset and custom globs and rejects invalid input", async () => {
     let receiveMessage;
     const saved = {};
     let editorSettings = { rules: { "singlestoreKeyword": "#abcdef", variable: "#123456" }, enabled: true };
@@ -50,8 +50,8 @@ test("configuration panel saves preset and custom globs and rejects invalid inpu
     const script = panel.webview.html.match(/<script nonce="[^"]+">([\s\S]*?)<\/script>/)[1];
     const listeners = {};
     const elements = {};
-    for (const id of ["host", "port", "username", "password", "databaseName", "useSSL",
-        "filePatternChoice", "customFilePattern", "schemaRefreshInterval", "configForm", "resetBtn", "validationMsg",
+    for (const id of ["filePatternChoice", "customFilePattern", "schemaRefreshInterval",
+        "configForm", "resetBtn", "validationMsg",
         ...["unknown", "identifier", "string", "number", "operator", "keyword", "end_of_query", "comment"]
             .flatMap(type => [`semantic-${type}`, `semantic-picker-${type}`])]) {
         elements[id] = {
@@ -72,7 +72,6 @@ test("configuration panel saves preset and custom globs and rejects invalid inpu
     assert.equal(elements.schemaRefreshInterval.value, "5");
     assert.equal(elements["semantic-keyword"].value, "#abcdef");
 
-    elements.host.value = "localhost";
     elements.filePatternChoice.value = "*.sql";
     elements.schemaRefreshInterval.value = "0";
     elements["semantic-picker-string"].value = "#112233";

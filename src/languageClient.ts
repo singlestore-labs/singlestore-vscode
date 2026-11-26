@@ -1,5 +1,4 @@
 import * as vscode from "vscode";
-import { isConfigurationComplete } from "./configurationView";
 import { WasmServer } from "./wasmServer";
 import { DatabaseConfig, errorMessage } from "./wasmTypes";
 import { completionPattern, getFilePattern } from "./fileAssociation";
@@ -20,18 +19,7 @@ let refreshTimer: ReturnType<typeof setInterval> | undefined;
 let refreshConfigured = false;
 let activeRefresh: { server: WasmServer; promise: Promise<void>; showProgress: boolean } | undefined;
 let automaticRefreshFailed = false;
-
-function getDatabaseConfig(): DatabaseConfig {
-    const config = vscode.workspace.getConfiguration("singlestore");
-    return {
-        host: config.get<string>("host", "127.0.0.1"),
-        port: config.get<number>("port", 3306),
-        database: config.get<string>("databaseName", ""),
-        username: config.get<string>("username", ""),
-        password: config.get<string>("password", ""),
-        ssl: config.get<boolean>("useSSL", false),
-    };
-}
+let databaseConfig: DatabaseConfig | undefined;
 
 function showError(message: string, error: unknown): void {
     void vscode.window.showErrorMessage(`SingleStore: ${message}. ${errorMessage(error)}`);
@@ -90,8 +78,8 @@ export async function startLanguageClient(): Promise<void> {
     if (server || shuttingDown) {
         return;
     }
-    const configured = isConfigurationComplete();
-    const current = new WasmServer(configured ? getDatabaseConfig() : undefined, error => {
+    const configured = databaseConfig !== undefined;
+    const current = new WasmServer(databaseConfig, error => {
         if (server === current) {
             showError("Local language server failed", error);
             void stopServer().catch(error => showError("Could not stop local language server", error));
@@ -260,6 +248,10 @@ export function updateDatabaseConfig(): void {
             await startLanguageClient();
         }).catch(error => showError("Could not restart local language server", error));
     }, 500);
+}
+
+export function setDatabaseConfig(config: DatabaseConfig | undefined): void {
+    databaseConfig = config;
 }
 
 export async function stopLanguageClient(): Promise<void> {

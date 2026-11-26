@@ -71,6 +71,14 @@ test("configured server refreshes periodically, avoids overlaps, retries failure
     } finally {
         Module._load = load;
     }
+    client.setDatabaseConfig({
+        host: "localhost",
+        port: 3306,
+        username: "test",
+        password: "",
+        database: "",
+        ssl: false,
+    });
     t.after(() => client.stopLanguageClient());
     const flush = () => new Promise(resolve => setImmediate(resolve));
 
@@ -195,6 +203,7 @@ test("offline grammar-only mode does not start periodic refresh", async t => {
     } finally {
         Module._load = load;
     }
+    client.setDatabaseConfig(undefined);
     await client.startLanguageClient();
     assert.equal(intervals, 0);
     await client.stopLanguageClient();

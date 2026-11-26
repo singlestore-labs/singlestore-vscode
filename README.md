@@ -1,12 +1,12 @@
 # SingleStore Language Client for VS Code
 
-A VS Code extension that provides SQL completions for [SingleStore](https://www.singlestore.com/) using the bundled WebAssembly SingleStore Language Server.
+A VS Code extension that provides SQL completions for [SingleStore](https://www.singlestore.com/) using the bundled WebAssembly SingleStore Language Server. A SingleStore icon in the Activity Bar opens the connection manager.
 
 ## Prerequisites
 
 No separate language server, Go installation, or server TCP/WebSocket endpoint is required. Version **0.2.2** of the all-grammars WASM release runs locally in a worker. When connected, it detects the database version and selects a compatible bundled grammar; offline it uses the default **10.1.0** grammar. If version detection fails, it logs a warning, uses the default grammar, and retries detection during schema refresh. Grammar-only completions work without a database connection.
 
-For schema-aware completions, provide a SingleStore database connection. The extension executes metadata queries through [singlestore-nodejs](https://github.com/singlestore-labs/singlestore-nodejs); credentials remain in the extension host and are not passed into WASM. The account needs permission for the language server's `INFORMATION_SCHEMA` and `SHOW` queries. SSL uses certificate verification when enabled.
+For schema-aware completions, add and connect to a SingleStore profile in the Activity Bar's **Connections** view. The extension executes metadata queries through [singlestore-nodejs](https://github.com/singlestore-labs/singlestore-nodejs); passwords are stored in VS Code SecretStorage and are not passed into WASM. The account needs permission for the language server's `INFORMATION_SCHEMA` and `SHOW` queries. SSL uses certificate verification when enabled. Only one profile can be active at a time.
 
 Database connections identify the extension using the `program_name` and `program_version` connection attributes from the installed extension's package manifest.
 
@@ -20,34 +20,26 @@ Alternatively, search for **SingleStore Language Client** on the VS Code Marketp
 
 ## Configuration
 
-Open the configuration panel by running the command **SingleStore: Connection Configuration** from the Command Palette (`Ctrl+Shift+P`).
+Use the **SingleStore** icon in the Activity Bar to add, connect, edit, or delete database profiles. Add and edit open a dedicated connection form with all profile fields; right-click a profile for its actions. Click an inactive profile to connect or the active profile to disconnect. Use **SingleStore: Preferences** for semantic colors and other SQL editor preferences.
 
-### Settings
+### Preferences
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `singlestore.host` | `127.0.0.1` | SingleStore database host address |
-| `singlestore.port` | `3306` | SingleStore database port number |
-| `singlestore.username` | | Username for database authentication |
-| `singlestore.password` | | Password for database authentication |
-| `singlestore.databaseName` | | Name of the database to connect to |
-| `singlestore.useSSL` | `false` | Enable SSL for the database connection |
 | `singlestore.filePattern` | `*.s2db.sql` | User-wide VS Code glob selecting files for SingleStore completions and language association |
 | `singlestore.schemaRefreshInterval` | `5` | Automatic schema refresh interval in minutes: `1`, `5`, `30`, `60`, or `0` (never) |
 
-These settings can also be configured directly in VS Code's Settings (`Ctrl+,`) under **SingleStore connection settings**.
-
-Host and username enable the database integration; password and database name are optional. Database settings changes restart the local worker and reload metadata. The former language-server address setting is no longer used and can be removed from existing settings.
+These preferences can be configured in **SingleStore: Preferences** or VS Code Settings (`Ctrl+,`). When upgrading, existing global connection settings are migrated once into a profile named **Migrated connection**; its password is moved to SecretStorage and the old settings are removed.
 
 ## Usage
 
 1. Open or create a file matching the selected pattern to use local SQL completions.
-2. Configure the database using **SingleStore: Connection Configuration** to load schema-aware completions.
+2. Add and connect to a profile in the SingleStore Activity Bar view to load schema-aware completions.
 3. Schema metadata refreshes automatically at the configured interval (five minutes by default) while a database connection is configured. Choose **Never** to disable periodic refresh; the initial refresh still runs. Interval changes take effect immediately without restarting the server. After DDL or other external schema changes, run **SingleStore: Refresh Database Schema** to refresh immediately. Failed refreshes are reported and retried on the next interval without disabling grammar completions or replacing the last successfully loaded schema. Repeated automatic failures are logged in the extension host log; a notification appears on the first failure until a refresh succeeds.
 
 ## Semantic highlighting
 
-The local server provides semantic highlighting for files matching the selected pattern. The connection configuration panel offers colors for each server token type. Enter a `#RGB` or `#RRGGBB` color or use the color picker; leave a field blank to use the theme's color. Color overrides are saved in the user-level `editor.semanticTokenColorCustomizations` under SingleStore-specific token names and do not change unrelated rules. Theme-specific or workspace settings may override them.
+The local server provides semantic highlighting for files matching the selected pattern. **SingleStore: Preferences** offers colors for each server token type. Enter a `#RGB` or `#RRGGBB` color or use the color picker; leave a field blank to use the theme's color. Color overrides are saved in the user-level `editor.semanticTokenColorCustomizations` under SingleStore-specific token names and do not change unrelated rules. Theme-specific or workspace settings may override them.
 
 Semantic highlighting is enabled by default for the SingleStore SQL language, unless explicitly disabled in VS Code settings. Files whose existing language association is preserved use that language's semantic-highlighting setting instead.
 
