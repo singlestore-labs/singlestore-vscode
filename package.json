@@ -1,6 +1,6 @@
 {
   "name": "singlestore-vscode",
-  "displayName": "SingleStore Language Client",
+  "displayName": "SingleStore Client",
   "description": "Local WebAssembly SQL completions for SingleStore in VS Code",
   "version": "0.0.0",
   "publisher": "singlestore",
